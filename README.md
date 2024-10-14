@@ -24,7 +24,7 @@ Download Flipper Zero apps directly to your Flipper Zero using WiFi. You no long
 - Delete Apps
 
 **v0.4**
-- App categories
+- App Categories (currently the apps download to a folder called FlipStore)
 
 **v0.5**
 - App short description
