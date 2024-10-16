@@ -33,6 +33,7 @@ bool flipper_http_send_data(const char *data);
 bool flipper_http_connect_wifi();
 bool flipper_http_disconnect_wifi();
 bool flipper_http_ping();
+bool flipper_http_scan_wifi();
 bool flipper_http_save_wifi(const char *ssid, const char *password);
 //---
 bool flipper_http_get_request(const char *url);
@@ -464,9 +465,8 @@ bool flipper_http_send_data(const char *data)
 
 // Function to send a PING request
 /**
- * @brief      Send a GET request to the specified URL.
+ * @brief      Send a PING request to check the connection status.
  * @return     true if the request was successful, false otherwise.
- * @param      url  The URL to send the GET request to.
  * @note       The received data will be handled asynchronously via the callback.
  * @note       This is best used to check if the Wifi Dev Board is connected.
  * @note       The state will remain INACTIVE until a PONG is received.
@@ -481,6 +481,25 @@ bool flipper_http_ping()
     }
     // set state as INACTIVE to be made IDLE if PONG is received
     fhttp.state = INACTIVE;
+    // The response will be handled asynchronously via the callback
+    return true;
+}
+
+// Function to scan for WiFi networks
+/**
+ * @brief      Send a command to scan for WiFi networks.
+ * @return     true if the request was successful, false otherwise.
+ * @note       The received data will be handled asynchronously via the callback.
+ */
+bool flipper_http_scan_wifi()
+{
+    const char *command = "[WIFI/SCAN]";
+    if (!flipper_http_send_data(command))
+    {
+        FURI_LOG_E("FlipperHTTP", "Failed to send WiFi scan command.");
+        return false;
+    }
+
     // The response will be handled asynchronously via the callback
     return true;
 }
