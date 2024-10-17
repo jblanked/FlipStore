@@ -334,8 +334,8 @@ static void flip_store_view_draw_callback_main(Canvas *canvas, void *model)
         canvas_draw_str(canvas, 0, 17, "Please connect to the board.");
         canvas_draw_str(canvas, 0, 32, "If your board is connected,");
         canvas_draw_str(canvas, 0, 42, "make sure you have flashed");
-        canvas_draw_str(canvas, 0, 52, "your Dev Board with the");
-        canvas_draw_str(canvas, 0, 62, "FlipperHTTP firmware.");
+        canvas_draw_str(canvas, 0, 52, "your WiFi Devboard with the");
+        canvas_draw_str(canvas, 0, 62, "latest FlipperHTTP flash.");
         return;
     }
 
