@@ -79,6 +79,9 @@ static void flip_store_app_free(FlipStoreApp *app)
         dialog_ex_free(app->dialog_delete);
     }
 
+    // Free the view dispatcher
+    flip_catalog_free();
+
     // deinitalize flipper http
     flipper_http_deinit();
 

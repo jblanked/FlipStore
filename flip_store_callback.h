@@ -4,24 +4,45 @@
 #include <string.h>
 #include <stdlib.h>
 #include "jsmn.h"
+#include <ctype.h>
+#include <stdbool.h>
 
 // Define maximum limits
-#define MAX_APP_NAME_LENGTH 50
+#define MAX_APP_NAME_LENGTH 32
 #define MAX_APP_COUNT 200
+#define MAX_TOKENS 1600 // there are currently 1505 tokens in the JSON response
 
 typedef struct
 {
-    char app_names[MAX_APP_COUNT][MAX_APP_NAME_LENGTH];
-    char app_ids[MAX_APP_COUNT][MAX_APP_NAME_LENGTH];
-} FlipStoreAppCatalog;
+    char *app_name;
+    char *app_id;
+} FlipStoreAppInfo;
 
-static FlipStoreAppCatalog flip_catalog;
+static FlipStoreAppInfo flip_catalog[MAX_APP_COUNT];
 
-uint32_t app_selected_index = 0;
-bool flip_store_sent_request = false;
-bool flip_store_success = false;
-bool flip_store_saved_data = false;
-bool flip_store_saved_success = false;
+static uint32_t app_selected_index = 0;
+static bool flip_store_sent_request = false;
+static bool flip_store_success = false;
+static bool flip_store_saved_data = false;
+static bool flip_store_saved_success = false;
+
+// Function to free the flip_catalog
+static void flip_catalog_free()
+{
+    for (int i = 0; i < MAX_APP_COUNT; i++)
+    {
+        if (flip_catalog[i].app_name != NULL)
+        {
+            free(flip_catalog[i].app_name);
+            flip_catalog[i].app_name = NULL;
+        }
+        if (flip_catalog[i].app_id != NULL)
+        {
+            free(flip_catalog[i].app_id);
+            flip_catalog[i].app_id = NULL;
+        }
+    }
+}
 
 // Helper function to compare JSON keys
 int jsoneq(const char *json, jsmntok_t *tok, const char *s)
@@ -34,6 +55,7 @@ int jsoneq(const char *json, jsmntok_t *tok, const char *s)
     }
     return -1;
 }
+
 // Function to clean app name string
 void clean_app_name(char *name)
 {
@@ -72,34 +94,21 @@ bool flip_store_process_app_list(char *json_data)
         return false;
     }
 
+    // Free existing catalog to prevent memory leaks
+    flip_catalog_free();
+
     jsmn_parser parser;
     jsmn_init(&parser);
 
     // Initial token allocation
-    int token_count = 128;
-    jsmntok_t *tokens = (jsmntok_t *)malloc(sizeof(jsmntok_t) * token_count);
+    jsmntok_t *tokens = (jsmntok_t *)malloc(sizeof(jsmntok_t) * MAX_TOKENS);
     if (tokens == NULL)
     {
         FURI_LOG_E(TAG, "Failed to allocate memory for JSON tokens.");
         return false;
     }
 
-    int ret = jsmn_parse(&parser, json_data, strlen(json_data), tokens, token_count);
-
-    // Reallocate tokens if needed
-    while (ret == JSMN_ERROR_NOMEM)
-    {
-        token_count *= 2;
-        jsmntok_t *new_tokens = (jsmntok_t *)realloc(tokens, sizeof(jsmntok_t) * token_count);
-        if (new_tokens == NULL)
-        {
-            FURI_LOG_E(TAG, "Failed to reallocate memory for JSON tokens.");
-            free(tokens);
-            return false;
-        }
-        tokens = new_tokens;
-        ret = jsmn_parse(&parser, json_data, strlen(json_data), tokens, token_count);
-    }
+    int ret = jsmn_parse(&parser, json_data, strlen(json_data), tokens, MAX_TOKENS);
 
     if (ret < 0)
     {
@@ -167,14 +176,6 @@ bool flip_store_process_app_list(char *json_data)
                     jsmntok_t *key_token = &tokens[app_token_index];
                     jsmntok_t *val_token = &tokens[app_token_index + 1];
 
-                    int key_length = key_token->end - key_token->start;
-                    if (key_length >= MAX_APP_NAME_LENGTH)
-                        key_length = MAX_APP_NAME_LENGTH - 1;
-
-                    char key_string[MAX_APP_NAME_LENGTH];
-                    strncpy(key_string, json_data + key_token->start, key_length);
-                    key_string[key_length] = '\0';
-
                     if (jsoneq(json_data, key_token, "name") == 0)
                     {
                         int val_length = val_token->end - val_token->start;
@@ -182,6 +183,7 @@ bool flip_store_process_app_list(char *json_data)
                             val_length = MAX_APP_NAME_LENGTH - 1;
                         strncpy(name_value, json_data + val_token->start, val_length);
                         name_value[val_length] = '\0';
+                        clean_app_name(name_value);
                     }
                     else if (jsoneq(json_data, key_token, "id") == 0)
                     {
@@ -190,6 +192,7 @@ bool flip_store_process_app_list(char *json_data)
                             val_length = MAX_APP_NAME_LENGTH - 1;
                         strncpy(id_value, json_data + val_token->start, val_length);
                         id_value[val_length] = '\0';
+                        clean_app_name(id_value);
                     }
 
                     app_token_index += 2;
@@ -201,14 +204,42 @@ bool flip_store_process_app_list(char *json_data)
                     break;
                 }
 
-                strncpy(flip_catalog.app_names[app_count], name_value, MAX_APP_NAME_LENGTH - 1);
-                flip_catalog.app_names[app_count][MAX_APP_NAME_LENGTH - 1] = '\0';
+                // Allocate memory for app_name and app_id
+                flip_catalog[app_count].app_name = (char *)malloc(MAX_APP_NAME_LENGTH);
+                flip_catalog[app_count].app_id = (char *)malloc(MAX_APP_NAME_LENGTH);
 
-                strncpy(flip_catalog.app_ids[app_count], id_value, MAX_APP_NAME_LENGTH - 1);
-                flip_catalog.app_ids[app_count][MAX_APP_NAME_LENGTH - 1] = '\0';
+                if (flip_catalog[app_count].app_name == NULL || flip_catalog[app_count].app_id == NULL)
+                {
+                    FURI_LOG_E(TAG, "Memory allocation failed for app_name or app_id.");
+
+                    // Cleanup already allocated entries
+                    for (int cleanup = 0; cleanup < app_count; cleanup++)
+                    {
+                        if (flip_catalog[cleanup].app_name != NULL)
+                        {
+                            free(flip_catalog[cleanup].app_name);
+                            flip_catalog[cleanup].app_name = NULL;
+                        }
+                        if (flip_catalog[cleanup].app_id != NULL)
+                        {
+                            free(flip_catalog[cleanup].app_id);
+                            flip_catalog[cleanup].app_id = NULL;
+                        }
+                    }
+
+                    free(tokens);
+                    return false;
+                }
+
+                strncpy(flip_catalog[app_count].app_name, name_value, MAX_APP_NAME_LENGTH - 1);
+                flip_catalog[app_count].app_name[MAX_APP_NAME_LENGTH - 1] = '\0';
+
+                strncpy(flip_catalog[app_count].app_id, id_value, MAX_APP_NAME_LENGTH - 1);
+                flip_catalog[app_count].app_id[MAX_APP_NAME_LENGTH - 1] = '\0';
 
                 app_count++;
 
+                // Update current to skip the current app object tokens
                 int tokens_to_skip = 1 + 2 * app_size;
                 current += tokens_to_skip;
             }
@@ -227,7 +258,7 @@ bool flip_store_process_app_list(char *json_data)
 
 bool flip_store_get_fap_file(char *app_id)
 {
-    char payload[256];
+    char payload[164];
     snprintf(payload, sizeof(payload), "{\"app_id\":\"%s\"}", app_id);
     return flipper_http_post_request_bytes("https://www.flipsocial.net/api/app/compile/", "{\"Content-Type\":\"application/json\"}", payload);
 }
@@ -278,22 +309,23 @@ void flip_store_request_error(Canvas *canvas)
 bool flip_store_install_app(Canvas *canvas)
 {
     // create /apps/FlipStore directory if it doesn't exist
-    char directory_path[256];
+    char directory_path[128];
     snprintf(directory_path, sizeof(directory_path), STORAGE_EXT_PATH_PREFIX "/apps/FlipStore");
 
     // Create the directory
     Storage *storage = furi_record_open(RECORD_STORAGE);
     storage_common_mkdir(storage, directory_path);
 
-    char *app_name = flip_catalog.app_names[app_selected_index];
-    char installaing_text[128];
-    snprintf(installaing_text, sizeof(installaing_text), "Installing %s", app_name);
+    // Adjusted to access flip_catalog as an array of structures
+    char *app_name = flip_catalog[app_selected_index].app_name;
+    char installing_text[128];
+    snprintf(installing_text, sizeof(installing_text), "Installing %s", app_name);
     char bin_path[256];
-    snprintf(bin_path, sizeof(bin_path), STORAGE_EXT_PATH_PREFIX "/apps/FlipStore/%s.fap", flip_catalog.app_ids[app_selected_index]);
+    snprintf(bin_path, sizeof(bin_path), STORAGE_EXT_PATH_PREFIX "/apps/FlipStore/%s.fap", flip_catalog[app_selected_index].app_id);
     strncpy(fhttp.file_path, bin_path, sizeof(fhttp.file_path) - 1);
-    canvas_draw_str(canvas, 0, 10, installaing_text);
-    canvas_draw_str(canvas, 0, 20, "Sending reqeuest..");
-    if (fhttp.state != INACTIVE && flip_store_get_fap_file(flip_catalog.app_ids[app_selected_index]))
+    canvas_draw_str(canvas, 0, 10, installing_text);
+    canvas_draw_str(canvas, 0, 20, "Sending request..");
+    if (fhttp.state != INACTIVE && flip_store_get_fap_file(flip_catalog[app_selected_index].app_id))
     {
         canvas_draw_str(canvas, 0, 30, "Request sent.");
         fhttp.state = RECEIVING;
@@ -379,7 +411,8 @@ static void flip_store_view_draw_callback_app_list(Canvas *canvas, void *model)
     UNUSED(model);
     canvas_clear(canvas);
     canvas_set_font(canvas, FontPrimary);
-    canvas_draw_str(canvas, 0, 10, flip_catalog.app_names[app_selected_index]);
+    // Adjusted to access flip_catalog as an array of structures
+    canvas_draw_str(canvas, 0, 10, flip_catalog[app_selected_index].app_name);
     // canvas_draw_icon(canvas, 0, 53, &I_ButtonLeft_4x7); (future implementation)
     //  canvas_draw_str_aligned(canvas, 7, 54, AlignLeft, AlignTop, "Delete");  (future implementation)
     canvas_draw_icon(canvas, 0, 53, &I_ButtonBACK_10x8);
@@ -508,6 +541,8 @@ static uint32_t callback_to_submenu(void *context)
         return VIEW_NONE;
     }
     UNUSED(context);
+    // free the app list
+    flip_catalog_free();
     return FlipStoreViewSubmenu;
 }
 
@@ -616,11 +651,14 @@ static void callback_submenu_choices(void *context, uint32_t index)
     case FlipStoreSubmenuIndexSettings:
         view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewSettings);
         break;
-    case FlipStoreSubmenuIndexDownloadApp:
-        view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewAppList);
-        break;
     // Ideally users should be sent to a draw callback view to show to request process (like in FlipSocial and WebCrawler)
     case FlipStoreSubmenuIndexAppList:
+        // initialize the flip_catalog[MAX_APP_COUNT];
+        // if (!flip_catalog_init())
+        // {
+        //     FURI_LOG_E(TAG, "Failed to initialize flip catalog");
+        //     return;
+        // }
         // async call to the app list with timer
         if (fhttp.state != INACTIVE && flipper_http_get_request_with_headers("https://www.flipsocial.net/api/flipper/apps/", "{\"Content-Type\":\"application/json\"}"))
         {
@@ -684,9 +722,9 @@ static void callback_submenu_choices(void *context, uint32_t index)
                 // add each app name to submenu
                 for (int i = 0; i < MAX_APP_COUNT; i++)
                 {
-                    if (strlen(flip_catalog.app_names[i]) > 0)
+                    if (flip_catalog[i].app_name != NULL && strlen(flip_catalog[i].app_name) > 0)
                     {
-                        submenu_add_item(app->submenu_app_list, flip_catalog.app_names[i], FlipStoreSubmenuIndexStartAppList + i, callback_submenu_choices, app);
+                        submenu_add_item(app->submenu_app_list, flip_catalog[i].app_name, FlipStoreSubmenuIndexStartAppList + i, callback_submenu_choices, app);
                     }
                 }
 
@@ -712,7 +750,7 @@ static void callback_submenu_choices(void *context, uint32_t index)
             if ((int)app_index >= 0 && app_index < MAX_APP_COUNT)
             {
                 // Get the app name
-                char *app_name = flip_catalog.app_names[app_index];
+                char *app_name = flip_catalog[app_index].app_name;
 
                 // Check if the app name is valid
                 if (app_name != NULL && strlen(app_name) > 0)

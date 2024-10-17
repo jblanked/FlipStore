@@ -20,7 +20,6 @@ typedef enum
     FlipStoreSubmenuIndexAbout,
     FlipStoreSubmenuIndexSettings,
     FlipStoreSubmenuIndexAppList,
-    FlipStoreSubmenuIndexDownloadApp,
     //
     FlipStoreSubmenuIndexStartAppList
 } FlipStoreSubmenuIndex;

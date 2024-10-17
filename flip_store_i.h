@@ -126,8 +126,7 @@ static FlipStoreApp *flip_store_app_alloc()
         // Update variable items
         if (app->variable_item_ssid)
             variable_item_set_current_value_text(app->variable_item_ssid, app->uart_text_input_buffer_ssid);
-        if (app->variable_item_pass)
-            variable_item_set_current_value_text(app->variable_item_pass, app->uart_text_input_buffer_pass);
+        // do not display the password
 
         // Copy items into their temp buffers with safety checks
         if (app->uart_text_input_buffer_ssid && app->uart_text_input_temp_buffer_ssid)
