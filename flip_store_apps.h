@@ -337,7 +337,7 @@ bool flip_store_get_fap_file(char *build_id, char *target, char *api)
     is_compile_app_request = true;
     char url[164];
     snprintf(url, sizeof(url), "https://catalog.flipperzero.one/api/v0/application/version/%s/build/compatible?target=%s&api=%s", build_id, target, api);
-    return flipper_http_get_request_bytes(url, "{\"Content-Type\":\"application/json\"}");
+    return flipper_http_get_request_bytes(url, "{{\"Content-Type\":\"application/octet-stream\"}}");
 }
 
 void flip_store_request_error(Canvas *canvas)
