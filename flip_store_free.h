@@ -38,6 +38,61 @@ static void flip_store_app_free(FlipStoreApp *app)
         view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewAppList);
         submenu_free(app->submenu_app_list);
     }
+    if (app->submenu_app_list_bluetooth)
+    {
+        view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewAppListBluetooth);
+        submenu_free(app->submenu_app_list_bluetooth);
+    }
+    if (app->submenu_app_list_games)
+    {
+        view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewAppListGames);
+        submenu_free(app->submenu_app_list_games);
+    }
+    if (app->submenu_app_list_gpio)
+    {
+        view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewAppListGPIO);
+        submenu_free(app->submenu_app_list_gpio);
+    }
+    if (app->submenu_app_list_infrared)
+    {
+        view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewAppListInfrared);
+        submenu_free(app->submenu_app_list_infrared);
+    }
+    if (app->submenu_app_list_ibutton)
+    {
+        view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewAppListiButton);
+        submenu_free(app->submenu_app_list_ibutton);
+    }
+    if (app->submenu_app_list_media)
+    {
+        view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewAppListMedia);
+        submenu_free(app->submenu_app_list_media);
+    }
+    if (app->submenu_app_list_nfc)
+    {
+        view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewAppListNFC);
+        submenu_free(app->submenu_app_list_nfc);
+    }
+    if (app->submenu_app_list_rfid)
+    {
+        view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewAppListRFID);
+        submenu_free(app->submenu_app_list_rfid);
+    }
+    if (app->submenu_app_list_subghz)
+    {
+        view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewAppListSubGHz);
+        submenu_free(app->submenu_app_list_subghz);
+    }
+    if (app->submenu_app_list_tools)
+    {
+        view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewAppListTools);
+        submenu_free(app->submenu_app_list_tools);
+    }
+    if (app->submenu_app_list_usb)
+    {
+        view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewAppListUSB);
+        submenu_free(app->submenu_app_list_usb);
+    }
 
     // Free Widget(s)
     if (app->widget)
@@ -79,7 +134,7 @@ static void flip_store_app_free(FlipStoreApp *app)
         dialog_ex_free(app->dialog_delete);
     }
 
-    // Free the view dispatcher
+    // Free the flip catalog
     flip_catalog_free();
 
     // deinitalize flipper http

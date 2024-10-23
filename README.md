@@ -17,14 +17,15 @@ Download Flipper Zero apps directly to your Flipper Zero using WiFi. You no long
 ## Roadmap
 **v0.2**
 - Stability Patch
-- LED options
+- App Categories
 
 **v0.3**
 - Caching
-- Delete Apps
+- Stability Patch 2
+- App Catalog Patch (add in required functionalility)
 
 **v0.4**
-- App Categories (currently the apps download to a folder called FlipStore)
+- Delete Apps
 
 **v0.5**
 - App short description
@@ -46,7 +47,7 @@ Download Flipper Zero apps directly to your Flipper Zero using WiFi. You no long
 This is a big task, and I welcome all contributors, especially developers interested in animations and graphics. Fork the repository, create a pull request, and I will review your edits.
 
 ## Known Bugs
-1. When clicking the Catalog, I get an "out of memory" error.
-   - This has been addressed but may still occur. If it does, just restart the app.
+1. Clicking the catalog results in an "Out of Memory" error.
+   - This issue has been addressed, but it may still occur. If it does, restart the app.
 2. The app file is corrupted.
-   - It's likely there was an error parsing the data. Restart the app and wait until the green LED light turns off after downloading the app before exiting the view.
+   - This is likely due to an error parsing the data. Restart the app and wait until the green LED light turns off after downloading the app before exiting the view. If this happens more than three times, the current version of FlipStore may not be able to download that app successfully.

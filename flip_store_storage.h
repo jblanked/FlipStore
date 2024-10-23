@@ -11,7 +11,7 @@ static void save_settings(
     const char *password)
 {
     // Create the directory for saving settings
-    char directory_path[256];
+    char directory_path[128];
     snprintf(directory_path, sizeof(directory_path), STORAGE_EXT_PATH_PREFIX "/apps_data/flip_store");
 
     // Create the directory
@@ -103,7 +103,7 @@ static bool load_settings(
 bool delete_app(const char *app_id, const char *app_category)
 {
     // Create the directory for saving settings
-    char directory_path[256];
+    char directory_path[128];
     snprintf(directory_path, sizeof(directory_path), STORAGE_EXT_PATH_PREFIX "/apps/%s/%s", app_category, app_id);
 
     // Create the directory
@@ -118,4 +118,200 @@ bool delete_app(const char *app_id, const char *app_category)
     furi_record_close(RECORD_STORAGE);
     return true;
 }
+
+#define BUFFER_SIZE 64
+#define MAX_KEY_LENGTH 32
+#define MAX_VALUE_LENGTH 64
+
+// Function to parse JSON incrementally from a file
+bool parse_json_incrementally(const char *file_path, const char *target_key, char *value_buffer, size_t value_buffer_size)
+{
+    Storage *_storage = NULL;
+    File *_file = NULL;
+    char buffer[BUFFER_SIZE];
+    size_t bytes_read;
+    bool key_found = false;
+    bool in_string = false;
+    bool is_escaped = false;
+    bool reading_key = false;
+    bool reading_value = false;
+    char current_key[MAX_KEY_LENGTH] = {0};
+    size_t key_index = 0;
+    size_t value_index = 0;
+
+    // Open storage and file
+    _storage = furi_record_open(RECORD_STORAGE);
+    if (!_storage)
+    {
+        FURI_LOG_E("JSON_PARSE", "Failed to open storage.");
+        return false;
+    }
+
+    _file = storage_file_alloc(_storage);
+    if (!_file)
+    {
+        FURI_LOG_E("JSON_PARSE", "Failed to allocate file.");
+        furi_record_close(RECORD_STORAGE);
+        return false;
+    }
+
+    if (!storage_file_open(_file, file_path, FSAM_READ, FSOM_OPEN_EXISTING))
+    {
+        FURI_LOG_E("JSON_PARSE", "Failed to open JSON file for reading.");
+        goto cleanup;
+    }
+
+    while ((bytes_read = storage_file_read(_file, buffer, BUFFER_SIZE)) > 0)
+    {
+        for (size_t i = 0; i < bytes_read; ++i)
+        {
+            char c = buffer[i];
+
+            if (is_escaped)
+            {
+                is_escaped = false;
+                if (reading_key)
+                {
+                    if (key_index < MAX_KEY_LENGTH - 1)
+                    {
+                        current_key[key_index++] = c;
+                    }
+                }
+                else if (reading_value)
+                {
+                    if (value_index < value_buffer_size - 1)
+                    {
+                        value_buffer[value_index++] = c;
+                    }
+                }
+                continue;
+            }
+
+            if (c == '\\')
+            {
+                is_escaped = true;
+                continue;
+            }
+
+            if (c == '\"')
+            {
+                in_string = !in_string;
+
+                if (in_string)
+                {
+                    // Start of a string
+                    if (!reading_key && !reading_value)
+                    {
+                        // Possible start of a key
+                        reading_key = true;
+                        key_index = 0;
+                        current_key[0] = '\0';
+                    }
+                }
+                else
+                {
+                    // End of a string
+                    if (reading_key)
+                    {
+                        reading_key = false;
+                        current_key[key_index] = '\0';
+
+                        if (strcmp(current_key, target_key) == 0)
+                        {
+                            key_found = true;
+                        }
+                    }
+                    else if (reading_value)
+                    {
+                        reading_value = false;
+                        value_buffer[value_index] = '\0';
+
+                        if (key_found)
+                        {
+                            // Found the target value
+                            goto success;
+                        }
+                    }
+                }
+                continue;
+            }
+
+            if (in_string)
+            {
+                if (reading_key)
+                {
+                    if (key_index < MAX_KEY_LENGTH - 1)
+                    {
+                        current_key[key_index++] = c;
+                    }
+                }
+                else if (reading_value)
+                {
+                    if (value_index < value_buffer_size - 1)
+                    {
+                        value_buffer[value_index++] = c;
+                    }
+                }
+                continue;
+            }
+
+            if (c == ':' && key_found && !reading_value)
+            {
+                // After colon, start reading the value
+                // Skip whitespace and possible opening quote
+                while (i + 1 < bytes_read && (buffer[i + 1] == ' ' || buffer[i + 1] == '\n' || buffer[i + 1] == '\r'))
+                {
+                    i++;
+                }
+
+                if (i + 1 < bytes_read && buffer[i + 1] == '\"')
+                {
+                    i++; // Move to the quote
+                    in_string = true;
+                    reading_value = true;
+                    value_index = 0;
+                }
+                else
+                {
+                    // Handle non-string values (e.g., numbers, booleans)
+                    reading_value = true;
+                    value_index = 0;
+                }
+                continue;
+            }
+
+            if (reading_value && (c == ',' || c == '}' || c == ']'))
+            {
+                // End of the value
+                reading_value = false;
+                value_buffer[value_index] = '\0';
+
+                if (key_found)
+                {
+                    // Found the target value
+                    goto success;
+                }
+                key_found = false;
+            }
+        }
+    }
+
+success:
+    storage_file_close(_file);
+    storage_file_free(_file);
+    furi_record_close(RECORD_STORAGE);
+    return key_found;
+
+cleanup:
+    if (_file)
+    {
+        storage_file_free(_file);
+    }
+    if (_storage)
+    {
+        furi_record_close(RECORD_STORAGE);
+    }
+    return false;
+}
+
 #endif

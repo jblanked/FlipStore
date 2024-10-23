@@ -17,14 +17,14 @@ Download Flipper Zero apps directly to your Flipper Zero using WiFi. You no long
 ## Roadmap
 **v0.2**
 - Stability Patch
-- LED options
+- App Categories
 
 **v0.3**
 - Caching
-- Delete Apps
+- App Catalog Patch (add in required functionalility)
 
 **v0.4**
-- App Categories (currently the apps download to a folder called FlipStore)
+- Delete Apps
 
 **v0.5**
 - App short description
@@ -50,3 +50,5 @@ This is a big task, and I welcome all contributors, especially developers intere
    - This has been addressed but may still occur. If it does, just restart the app.
 2. The app file is corrupted.
    - It's likely there was an error parsing the data. Restart the app and wait until the green LED light turns off after downloading the app before exiting the view.
+3. The app is stuck on "receiving".
+   - Restart your Flipper Zero with your WiFi Devboard plugged in.

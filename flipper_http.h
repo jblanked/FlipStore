@@ -15,10 +15,10 @@
 #define HTTP_TAG "FlipStore"              // change this to your app name
 #define http_tag "flip_store"             // change this to your app id
 #define UART_CH (FuriHalSerialIdUsart)    // UART channel
-#define TIMEOUT_DURATION_TICKS (2 * 1000) // 2 seconds
+#define TIMEOUT_DURATION_TICKS (3 * 1000) // 5 seconds
 #define BAUDRATE (115200)                 // UART baudrate
 #define RX_BUF_SIZE 1024                  // UART RX buffer size
-#define RX_LINE_BUFFER_SIZE 10000         // UART RX line buffer size (increase for large responses)
+#define RX_LINE_BUFFER_SIZE 5000          // UART RX line buffer size (increase for large responses)
 
 // Forward declaration for callback
 typedef void (*FlipperHTTP_Callback)(const char *line, void *context);
@@ -65,13 +65,15 @@ typedef enum
     WorkerEvtRxDone = (1 << 1),
 } WorkerEvtFlags;
 
+static bool is_compile_app_request = false; // personal use in flip_store_apps.h
+
 // FlipperHTTP Structure
 typedef struct
 {
-    FuriStreamBuffer *flipper_http_stream;  // Stream buffer for UART communication
-    FuriHalSerialHandle *serial_handle;     // Serial handle for UART communication
-    FuriThread *rx_thread;                  // Worker thread for UART
-    uint8_t rx_buf[RX_BUF_SIZE];            // Buffer for received data
+    FuriStreamBuffer *flipper_http_stream; // Stream buffer for UART communication
+    FuriHalSerialHandle *serial_handle;    // Serial handle for UART communication
+    FuriThread *rx_thread;                 // Worker thread for UART
+    // uint8_t rx_buf[RX_BUF_SIZE];            // Buffer for received data
     FuriThreadId rx_thread_id;              // Worker thread ID
     FlipperHTTP_Callback handle_rx_line_cb; // Callback for received lines
     void *callback_context;                 // Context for the callback
@@ -107,10 +109,10 @@ typedef struct
 
 } FlipperHTTP;
 
-FlipperHTTP fhttp;
+static FlipperHTTP fhttp;
 
 // Function to append received data to file
-bool append_to_file(const char *file_path, const void *data, size_t data_size)
+static bool append_to_file(const char *file_path, const void *data, size_t data_size)
 {
     Storage *storage = furi_record_open(RECORD_STORAGE);
     File *file = storage_file_alloc(storage);
@@ -140,6 +142,10 @@ bool append_to_file(const char *file_path, const void *data, size_t data_size)
 
     return true;
 }
+// Global static array for the line buffer
+static char rx_line_buffer[RX_LINE_BUFFER_SIZE];
+#define FILE_BUFFER_SIZE 512
+static uint8_t file_buffer[FILE_BUFFER_SIZE];
 
 // UART worker thread
 /**
@@ -148,21 +154,12 @@ bool append_to_file(const char *file_path, const void *data, size_t data_size)
  * @param      context   The context to pass to the callback.
  * @note       This function will handle received data asynchronously via the callback.
  */
+// UART worker thread
 static int32_t flipper_http_worker(void *context)
 {
     UNUSED(context);
     size_t rx_line_pos = 0;
-    char *rx_line_buffer = (char *)malloc(RX_LINE_BUFFER_SIZE);
-
-    if (!rx_line_buffer)
-    {
-        // Handle malloc failure
-        FURI_LOG_E(HTTP_TAG, "Failed to allocate memory for rx_line_buffer");
-        return -1;
-    }
-
-    // Create the file path if not already set
-    // snprintf(fhttp.file_path, sizeof(fhttp.file_path), STORAGE_EXT_PATH_PREFIX "/apps/http_received_data.fap");
+    static size_t file_buffer_len = 0;
 
     while (1)
     {
@@ -171,38 +168,101 @@ static int32_t flipper_http_worker(void *context)
             break;
         if (events & WorkerEvtRxDone)
         {
-            size_t len = furi_stream_buffer_receive(fhttp.flipper_http_stream, fhttp.rx_buf, RX_BUF_SIZE, 0);
-            // Append each received byte chunk to the file
-            if (fhttp.save_data && !append_to_file(fhttp.file_path, fhttp.rx_buf, len))
+            // Continuously read from the stream buffer until it's empty
+            while (!furi_stream_buffer_is_empty(fhttp.flipper_http_stream))
             {
-                FURI_LOG_E(HTTP_TAG, "Failed to append received data to file");
-            }
+                // Read one byte at a time
+                char c = 0;
+                size_t received = furi_stream_buffer_receive(fhttp.flipper_http_stream, &c, 1, 0);
 
-            for (size_t i = 0; i < len; i++)
-            {
-                char c = fhttp.rx_buf[i]; // Raw byte received
-
-                if (c == '\n' || rx_line_pos >= RX_LINE_BUFFER_SIZE - 1)
+                if (received == 0)
                 {
-                    rx_line_buffer[rx_line_pos] = '\0'; // Null-terminate the line
-                    // Invoke the callback with the complete line
-                    if (fhttp.handle_rx_line_cb)
-                    {
-                        fhttp.handle_rx_line_cb(rx_line_buffer, fhttp.callback_context);
-                    }
-                    // Reset the line buffer position
-                    rx_line_pos = 0;
+                    // No more data to read
+                    break;
                 }
-                else
+
+                // Append the received byte to the file if saving is enabled
+                if (fhttp.save_data)
                 {
-                    rx_line_buffer[rx_line_pos++] = c; // Add character to the line buffer
+                    // Add byte to the buffer
+                    file_buffer[file_buffer_len++] = c;
+                    // Write to file if buffer is full
+                    if (file_buffer_len >= FILE_BUFFER_SIZE)
+                    {
+                        if (!append_to_file(fhttp.file_path, file_buffer, file_buffer_len))
+                        {
+                            FURI_LOG_E(HTTP_TAG, "Failed to append data to file");
+                        }
+                        file_buffer_len = 0;
+                    }
+                }
+
+                // Handle line buffering only if callback is set (text data)
+                if (fhttp.handle_rx_line_cb)
+                {
+                    // Handle line buffering
+                    if (c == '\n' || rx_line_pos >= RX_LINE_BUFFER_SIZE - 1)
+                    {
+                        rx_line_buffer[rx_line_pos] = '\0'; // Null-terminate the line
+
+                        // Invoke the callback with the complete line
+                        fhttp.handle_rx_line_cb(rx_line_buffer, fhttp.callback_context);
+
+                        // Reset the line buffer position
+                        rx_line_pos = 0;
+                    }
+                    else
+                    {
+                        rx_line_buffer[rx_line_pos++] = c; // Add character to the line buffer
+                    }
                 }
             }
         }
     }
 
-    // Free the allocated memory before exiting the thread
-    free(rx_line_buffer);
+    if (fhttp.save_data)
+    {
+        // Write the remaining data to the file
+        if (file_buffer_len > 0)
+        {
+            if (!append_to_file(fhttp.file_path, file_buffer, file_buffer_len))
+            {
+                FURI_LOG_E(HTTP_TAG, "Failed to append remaining data to file");
+            }
+        }
+    }
+
+    // remove [POST/END] and/or [GET/END] from the file
+    if (fhttp.save_data)
+    {
+        char *end = NULL;
+        if ((end = strstr(fhttp.file_path, "[POST/END]")) != NULL)
+        {
+            *end = '\0';
+        }
+        else if ((end = strstr(fhttp.file_path, "[GET/END]")) != NULL)
+        {
+            *end = '\0';
+        }
+    }
+
+    // remove newline from the from the end of the file
+    if (fhttp.save_data)
+    {
+        char *end = NULL;
+        if ((end = strstr(fhttp.file_path, "\n")) != NULL)
+        {
+            *end = '\0';
+        }
+    }
+
+    // Reset the file buffer length
+    file_buffer_len = 0;
+
+    if (fhttp.save_data)
+    {
+        FURI_LOG_I(HTTP_TAG, "Data saved to file: %s", fhttp.file_path);
+    }
 
     return 0;
 }
@@ -869,7 +929,7 @@ void flipper_http_rx_callback(const char *line, void *context)
             if (fhttp.received_data)
             {
                 // uncomment if you want to save the received data to the external storage
-                // flipper_http_save_received_data(strlen(fhttp.received_data), fhttp.received_data);
+                flipper_http_save_received_data(strlen(fhttp.received_data), fhttp.received_data);
                 fhttp.started_receiving_get = false;
                 fhttp.just_started_get = false;
                 fhttp.state = IDLE;
@@ -1124,6 +1184,10 @@ void flipper_http_rx_callback(const char *line, void *context)
         furi_timer_start(fhttp.get_timeout_timer, TIMEOUT_DURATION_TICKS);
         fhttp.state = RECEIVING;
         fhttp.received_data = NULL;
+        if (is_compile_app_request)
+        {
+            fhttp.save_data = true;
+        }
         return;
     }
     else if (strstr(line, "[POST/SUCCESS]") != NULL)
@@ -1133,7 +1197,10 @@ void flipper_http_rx_callback(const char *line, void *context)
         furi_timer_start(fhttp.get_timeout_timer, TIMEOUT_DURATION_TICKS);
         fhttp.state = RECEIVING;
         fhttp.received_data = NULL;
-        fhttp.save_data = true;
+        if (is_compile_app_request)
+        {
+            fhttp.save_data = true;
+        }
         return;
     }
     else if (strstr(line, "[PUT/SUCCESS]") != NULL)

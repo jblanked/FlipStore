@@ -115,10 +115,67 @@ static FlipStoreApp *flip_store_app_alloc()
     {
         return NULL;
     }
+    if (!easy_flipper_set_submenu(&app->submenu_app_list_bluetooth, FlipStoreViewAppListBluetooth, "Bluetooth", callback_to_app_list, &app->view_dispatcher))
+    {
+        return NULL;
+    }
+    if (!easy_flipper_set_submenu(&app->submenu_app_list_games, FlipStoreViewAppListGames, "Games", callback_to_app_list, &app->view_dispatcher))
+    {
+        return NULL;
+    }
+    if (!easy_flipper_set_submenu(&app->submenu_app_list_gpio, FlipStoreViewAppListGPIO, "GPIO", callback_to_app_list, &app->view_dispatcher))
+    {
+        return NULL;
+    }
+    if (!easy_flipper_set_submenu(&app->submenu_app_list_infrared, FlipStoreViewAppListInfrared, "Infrared", callback_to_app_list, &app->view_dispatcher))
+    {
+        return NULL;
+    }
+    if (!easy_flipper_set_submenu(&app->submenu_app_list_ibutton, FlipStoreViewAppListiButton, "iButton", callback_to_app_list, &app->view_dispatcher))
+    {
+        return NULL;
+    }
+    if (!easy_flipper_set_submenu(&app->submenu_app_list_media, FlipStoreViewAppListMedia, "Media", callback_to_app_list, &app->view_dispatcher))
+    {
+        return NULL;
+    }
+    if (!easy_flipper_set_submenu(&app->submenu_app_list_nfc, FlipStoreViewAppListNFC, "NFC", callback_to_app_list, &app->view_dispatcher))
+    {
+        return NULL;
+    }
+    if (!easy_flipper_set_submenu(&app->submenu_app_list_rfid, FlipStoreViewAppListRFID, "RFID", callback_to_app_list, &app->view_dispatcher))
+    {
+        return NULL;
+    }
+    if (!easy_flipper_set_submenu(&app->submenu_app_list_subghz, FlipStoreViewAppListSubGHz, "Sub-GHz", callback_to_app_list, &app->view_dispatcher))
+    {
+        return NULL;
+    }
+    if (!easy_flipper_set_submenu(&app->submenu_app_list_tools, FlipStoreViewAppListTools, "Tools", callback_to_app_list, &app->view_dispatcher))
+    {
+        return NULL;
+    }
+    if (!easy_flipper_set_submenu(&app->submenu_app_list_usb, FlipStoreViewAppListUSB, "USB", callback_to_app_list, &app->view_dispatcher))
+    {
+        return NULL;
+    }
     submenu_add_item(app->submenu, "Catalog", FlipStoreSubmenuIndexAppList, callback_submenu_choices, app);
     submenu_add_item(app->submenu, "About", FlipStoreSubmenuIndexAbout, callback_submenu_choices, app);
     submenu_add_item(app->submenu, "Settings", FlipStoreSubmenuIndexSettings, callback_submenu_choices, app);
-    // dont add any items to the app list submenu yet
+    //
+    submenu_add_item(app->submenu_app_list, "Bluetooth", FlipStoreSubmenuIndexAppListBluetooth, callback_submenu_choices, app);
+    submenu_add_item(app->submenu_app_list, "Games", FlipStoreSubmenuIndexAppListGames, callback_submenu_choices, app);
+    submenu_add_item(app->submenu_app_list, "GPIO", FlipStoreSubmenuIndexAppListGPIO, callback_submenu_choices, app);
+    submenu_add_item(app->submenu_app_list, "Infrared", FlipStoreSubmenuIndexAppListInfrared, callback_submenu_choices, app);
+    submenu_add_item(app->submenu_app_list, "iButton", FlipStoreSubmenuIndexAppListiButton, callback_submenu_choices, app);
+    submenu_add_item(app->submenu_app_list, "Media", FlipStoreSubmenuIndexAppListMedia, callback_submenu_choices, app);
+    submenu_add_item(app->submenu_app_list, "NFC", FlipStoreSubmenuIndexAppListNFC, callback_submenu_choices, app);
+    submenu_add_item(app->submenu_app_list, "RFID", FlipStoreSubmenuIndexAppListRFID, callback_submenu_choices, app);
+    submenu_add_item(app->submenu_app_list, "Sub-GHz", FlipStoreSubmenuIndexAppListSubGHz, callback_submenu_choices, app);
+    submenu_add_item(app->submenu_app_list, "Tools", FlipStoreSubmenuIndexAppListTools, callback_submenu_choices, app);
+    submenu_add_item(app->submenu_app_list, "USB", FlipStoreSubmenuIndexAppListUSB, callback_submenu_choices, app);
+    //
+    // dont add any items to the app list submenu of each category yet
 
     // load settings
     if (load_settings(app->uart_text_input_buffer_ssid, app->uart_text_input_buffer_size_ssid, app->uart_text_input_buffer_pass, app->uart_text_input_buffer_size_pass))
