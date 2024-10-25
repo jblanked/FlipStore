@@ -15,7 +15,7 @@
 #define HTTP_TAG "FlipStore"              // change this to your app name
 #define http_tag "flip_store"             // change this to your app id
 #define UART_CH (FuriHalSerialIdUsart)    // UART channel
-#define TIMEOUT_DURATION_TICKS (3 * 1000) // 5 seconds
+#define TIMEOUT_DURATION_TICKS (5 * 1000) // 5 seconds
 #define BAUDRATE (115200)                 // UART baudrate
 #define RX_BUF_SIZE 1024                  // UART RX buffer size
 #define RX_LINE_BUFFER_SIZE 5000          // UART RX line buffer size (increase for large responses)
