@@ -337,7 +337,7 @@ bool flip_store_get_fap_file(char *build_id, char *target, char *api)
     is_compile_app_request = true;
     char url[164];
     snprintf(url, sizeof(url), "https://catalog.flipperzero.one/api/v0/application/version/%s/build/compatible?target=%s&api=%s", build_id, target, api);
-    return flipper_http_get_request_bytes(url, "{{\"Content-Type\":\"application/octet-stream\"}}");
+    return flipper_http_get_request_bytes(url, jsmn("Content-Type", "application/octet-stream"));
 }
 
 void flip_store_request_error(Canvas *canvas)
@@ -451,7 +451,7 @@ int32_t flip_store_handle_app_list(FlipStoreApp *app, int32_t success_view, char
     // append the category to the end of the url
     snprintf(url, sizeof(url), "https://www.flipsocial.net/api/flipper/apps/%s/extended/", category);
     // async call to the app list with timer
-    if (fhttp.state != INACTIVE && flipper_http_get_request_with_headers(url, "{\"Content-Type\":\"application/json\"}"))
+    if (fhttp.state != INACTIVE && flipper_http_get_request_with_headers(url, jsmn("Content-Type", "application/json")))
     {
         furi_timer_start(fhttp.get_timeout_timer, TIMEOUT_DURATION_TICKS);
         fhttp.state = RECEIVING;

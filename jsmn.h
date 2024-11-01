@@ -537,6 +537,19 @@ extern "C"
 #include <stdio.h>
 #include <furi.h>
 
+// Helper function to create a JSON object
+char *jsmn(const char *key, const char *value)
+{
+  int length = strlen(key) + strlen(value) + 8;         // Calculate required length
+  char *result = (char *)malloc(length * sizeof(char)); // Allocate memory
+  if (result == NULL)
+  {
+    return NULL; // Handle memory allocation failure
+  }
+  snprintf(result, length, "{\"%s\":\"%s\"}", key, value);
+  return result; // Caller is responsible for freeing this memory
+}
+
 // Helper function to compare JSON keys
 int jsoneq(const char *json, jsmntok_t *tok, const char *s)
 {
@@ -613,6 +626,111 @@ char *get_json_value(char *key, char *json_data, uint32_t max_tokens)
   }
   FURI_LOG_E("JSMM.H", "Failed to find the key in the JSON.");
   return NULL; // Return NULL if something goes wrong
+}
+
+// Revised get_json_array_value function
+char *get_json_array_value(char *key, uint32_t index, char *json_data, uint32_t max_tokens)
+{
+  // Retrieve the array string for the given key
+  char *array_str = get_json_value(key, json_data, max_tokens);
+  if (array_str == NULL)
+  {
+    FURI_LOG_E("JSMM.H", "Failed to get array for key: %s", key);
+    return NULL;
+  }
+
+  // Initialize the JSON parser
+  jsmn_parser parser;
+  jsmn_init(&parser);
+
+  // Allocate memory for JSON tokens
+  jsmntok_t *tokens = malloc(sizeof(jsmntok_t) * max_tokens);
+  if (tokens == NULL)
+  {
+    FURI_LOG_E("JSMM.H", "Failed to allocate memory for JSON tokens.");
+    free(array_str);
+    return NULL;
+  }
+
+  // Parse the JSON array
+  int ret = jsmn_parse(&parser, array_str, strlen(array_str), tokens, max_tokens);
+  if (ret < 0)
+  {
+    FURI_LOG_E("JSMM.H", "Failed to parse JSON array: %d", ret);
+    free(tokens);
+    free(array_str);
+    return NULL;
+  }
+
+  // Ensure the root element is an array
+  if (ret < 1 || tokens[0].type != JSMN_ARRAY)
+  {
+    FURI_LOG_E("JSMM.H", "Value for key '%s' is not an array.", key);
+    free(tokens);
+    free(array_str);
+    return NULL;
+  }
+
+  // Check if the index is within bounds
+  if (index >= (uint32_t)tokens[0].size)
+  {
+    FURI_LOG_E("JSMM.H", "Index %lu out of bounds for array with size %d.", (unsigned long)index, tokens[0].size);
+    free(tokens);
+    free(array_str);
+    return NULL;
+  }
+
+  // Locate the token corresponding to the desired array element
+  int current_token = 1; // Start after the array token
+  for (uint32_t i = 0; i < index; i++)
+  {
+    if (tokens[current_token].type == JSMN_OBJECT)
+    {
+      // For objects, skip all key-value pairs
+      current_token += 1 + 2 * tokens[current_token].size;
+    }
+    else if (tokens[current_token].type == JSMN_ARRAY)
+    {
+      // For nested arrays, skip all elements
+      current_token += 1 + tokens[current_token].size;
+    }
+    else
+    {
+      // For primitive types, simply move to the next token
+      current_token += 1;
+    }
+
+    // Safety check to prevent out-of-bounds
+    if (current_token >= ret)
+    {
+      FURI_LOG_E("JSMM.H", "Unexpected end of tokens while traversing array.");
+      free(tokens);
+      free(array_str);
+      return NULL;
+    }
+  }
+
+  // Extract the array element
+  jsmntok_t element = tokens[current_token];
+  int length = element.end - element.start;
+  char *value = malloc(length + 1);
+  if (value == NULL)
+  {
+    FURI_LOG_E("JSMM.H", "Failed to allocate memory for array element.");
+    free(tokens);
+    free(array_str);
+    return NULL;
+  }
+
+  // Copy the element value to a new string
+  strncpy(value, array_str + element.start, length);
+  value[length] = '\0'; // Null-terminate the string
+
+  // Clean up
+  free(tokens);
+  free(array_str);
+
+  return value;
 }
 
 // Revised get_json_array_values function with correct token skipping
