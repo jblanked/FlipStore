@@ -103,8 +103,8 @@ static FlipStoreApp *flip_store_app_alloc()
     {
         return NULL;
     }
-    app->variable_item_ssid = variable_item_list_add(app->variable_item_list, "SSID", 1, NULL, NULL);
-    app->variable_item_pass = variable_item_list_add(app->variable_item_list, "Password", 1, NULL, NULL);
+    app->variable_item_ssid = variable_item_list_add(app->variable_item_list, "SSID", 0, NULL, NULL);
+    app->variable_item_pass = variable_item_list_add(app->variable_item_list, "Password", 0, NULL, NULL);
 
     // Submenu
     if (!easy_flipper_set_submenu(&app->submenu, FlipStoreViewSubmenu, "FlipStore", callback_exit_app, &app->view_dispatcher))

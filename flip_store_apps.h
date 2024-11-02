@@ -30,7 +30,7 @@ enum ObjectState
     OBJECT_EXPECT_COMMA_OR_END
 };
 
-void flip_catalog_free()
+static void flip_catalog_free()
 {
     if (flip_catalog)
     {
@@ -39,8 +39,22 @@ void flip_catalog_free()
     }
 }
 
+static bool flip_catalog_alloc()
+{
+    if (!flip_catalog)
+    {
+        flip_catalog = (FlipStoreAppInfo *)malloc(MAX_APP_COUNT * sizeof(FlipStoreAppInfo));
+    }
+    if (!flip_catalog)
+    {
+        FURI_LOG_E(TAG, "Failed to allocate memory for flip_catalog.");
+        return false;
+    }
+    return true;
+}
+
 // Utility function to parse JSON incrementally from a file
-bool flip_store_process_app_list(const char *file_path)
+static bool flip_store_process_app_list(const char *file_path)
 {
     if (file_path == NULL)
     {
@@ -49,8 +63,7 @@ bool flip_store_process_app_list(const char *file_path)
     }
 
     // initialize the flip_catalog
-    flip_catalog = (FlipStoreAppInfo *)malloc(MAX_APP_COUNT * sizeof(FlipStoreAppInfo));
-    if (!flip_catalog)
+    if (!flip_catalog_alloc())
     {
         FURI_LOG_E(TAG, "Failed to allocate memory for flip_catalog.");
         return false;
@@ -311,14 +324,6 @@ bool flip_store_process_app_list(const char *file_path)
         }
     }
 
-    // free remaining app catalog memory
-    for (int i = app_count; i < MAX_APP_COUNT; i++)
-    {
-        flip_catalog[i].app_name[0] = '\0';
-        flip_catalog[i].app_id[0] = '\0';
-        flip_catalog[i].app_build_id[0] = '\0';
-    }
-
     // Clean up
     storage_file_close(_file);
     storage_file_free(_file);
@@ -332,7 +337,7 @@ bool flip_store_process_app_list(const char *file_path)
     return true;
 }
 
-bool flip_store_get_fap_file(char *build_id, char *target, char *api)
+static bool flip_store_get_fap_file(char *build_id, char *target, char *api)
 {
     is_compile_app_request = true;
     char url[164];
@@ -340,7 +345,7 @@ bool flip_store_get_fap_file(char *build_id, char *target, char *api)
     return flipper_http_get_request_bytes(url, jsmn("Content-Type", "application/octet-stream"));
 }
 
-void flip_store_request_error(Canvas *canvas)
+static void flip_store_request_error(Canvas *canvas)
 {
     if (fhttp.received_data == NULL)
     {
@@ -384,7 +389,7 @@ void flip_store_request_error(Canvas *canvas)
     }
 }
 // function to handle the entire installation process "asynchronously"
-bool flip_store_install_app(Canvas *canvas, char *category)
+static bool flip_store_install_app(Canvas *canvas, char *category)
 {
     // create /apps/FlipStore directory if it doesn't exist
     char directory_path[128];
@@ -433,7 +438,7 @@ bool flip_store_install_app(Canvas *canvas, char *category)
 }
 
 // process the app list and return view
-int32_t flip_store_handle_app_list(FlipStoreApp *app, int32_t success_view, char *category, Submenu **submenu)
+static int32_t flip_store_handle_app_list(FlipStoreApp *app, int32_t success_view, char *category, Submenu **submenu)
 {
     // reset the flip_catalog
     if (flip_catalog)
