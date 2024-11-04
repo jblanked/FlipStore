@@ -10,7 +10,7 @@ Download Flipper Zero apps directly to your Flipper Zero using WiFi. You no long
 - Install Official Firmware (coming soon)
 
 ## Installation
-1. Flash your WiFi Devboard: https://github.com/jblanked/WebCrawler-FlipperZero/tree/main/assets/FlipperHTTP
+1. Flash your WiFi Devboard: https://github.com/jblanked/FlipperHTTP
 2. Install the app.
 3. Enjoy :D
 
