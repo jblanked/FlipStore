@@ -1,26 +1,9 @@
 // from https://github.com/xMasterX/all-the-plugins/blob/dev/base_pack/uart_terminal/uart_text_input.c
 // all credits to xMasterX for the code
-#ifndef UART_TEXT_INPUT_H
-#define UART_TEXT_INPUT_H
-
+#include "uart_text_input.h"
 #include <gui/elements.h>
 #include "flip_store_icons.h"
 #include <furi.h>
-#include <furi.h>
-#include <furi_hal.h>
-#include <gui/gui.h>
-#include <gui/view.h>
-#include <core/common_defines.h>
-
-/** Text input anonymous structure */
-typedef struct UART_TextInput UART_TextInput;
-typedef void (*UART_TextInputCallback)(void *context);
-typedef bool (*UART_TextInputValidatorCallback)(const char *text, FuriString *error, void *context);
-
-UART_TextInputValidatorCallback
-uart_text_input_get_validator_callback(UART_TextInput *uart_text_input);
-
-void uart_text_input_reset(UART_TextInput *uart_text_input);
 
 struct UART_TextInput
 {
@@ -799,5 +782,3 @@ void uart_text_input_set_header_text(UART_TextInput *uart_text_input, const char
     with_view_model(
         uart_text_input->view, UART_TextInputModel * model, { model->header = text; }, true);
 }
-
-#endif // UART_TEXT_INPUT_H

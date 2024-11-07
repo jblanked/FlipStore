@@ -1,8 +1,22 @@
-#ifndef FLIP_STORE_FREE_H
-#define FLIP_STORE_FREE_H
+#include <flip_store.h>
+
+// define the list of categories
+char *categories[] = {
+    "Bluetooth",
+    "Games",
+    "GPIO",
+    "Infrared",
+    "iButton",
+    "Media",
+    "NFC",
+    "RFID",
+    "Sub-GHz",
+    "Tools",
+    "USB",
+};
 
 // Function to free the resources used by FlipStoreApp
-static void flip_store_app_free(FlipStoreApp *app)
+void flip_store_app_free(FlipStoreApp *app)
 {
     if (!app)
     {
@@ -129,9 +143,6 @@ static void flip_store_app_free(FlipStoreApp *app)
         dialog_ex_free(app->dialog_delete);
     }
 
-    // Free the flip catalog
-    flip_catalog_free();
-
     // deinitalize flipper http
     flipper_http_deinit();
 
@@ -144,5 +155,3 @@ static void flip_store_app_free(FlipStoreApp *app)
     // free the app
     free(app);
 }
-
-#endif // FLIP_STORE_FREE_H

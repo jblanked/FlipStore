@@ -1,12 +1,6 @@
-#ifndef FLIP_STORE_STORAGE_H
-#define FLIP_STORE_STORAGE_H
+#include "flip_storage/flip_store_storage.h"
 
-#include <furi.h>
-#include <storage/storage.h>
-
-#define SETTINGS_PATH STORAGE_EXT_PATH_PREFIX "/apps_data/flip_store/settings.bin"
-
-static void save_settings(
+void save_settings(
     const char *ssid,
     const char *password)
 {
@@ -49,7 +43,7 @@ static void save_settings(
     furi_record_close(RECORD_STORAGE);
 }
 
-static bool load_settings(
+bool load_settings(
     char *ssid,
     size_t ssid_size,
     char *password,
@@ -118,10 +112,6 @@ bool delete_app(const char *app_id, const char *app_category)
     furi_record_close(RECORD_STORAGE);
     return true;
 }
-
-#define BUFFER_SIZE 64
-#define MAX_KEY_LENGTH 32
-#define MAX_VALUE_LENGTH 64
 
 // Function to parse JSON incrementally from a file
 bool parse_json_incrementally(const char *file_path, const char *target_key, char *value_buffer, size_t value_buffer_size)
@@ -313,5 +303,3 @@ cleanup:
     }
     return false;
 }
-
-#endif

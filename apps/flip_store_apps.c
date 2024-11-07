@@ -1,69 +1,75 @@
-#ifndef FLIP_STORE_APPS_H
-#define FLIP_STORE_APPS_H
+#include <apps/flip_store_apps.h>
 
-// Define maximum limits
-#define MAX_APP_NAME_LENGTH 32
-#define MAX_ID_LENGTH 32
-#define MAX_APP_COUNT 100
+FlipStoreAppInfo *flip_catalog = NULL;
 
-typedef struct
+uint32_t app_selected_index = 0;
+bool flip_store_sent_request = false;
+bool flip_store_success = false;
+bool flip_store_saved_data = false;
+bool flip_store_saved_success = false;
+uint32_t flip_store_category_index = 0;
+
+FlipStoreAppInfo *flip_catalog_alloc()
 {
-    char app_name[MAX_APP_NAME_LENGTH];
-    char app_id[MAX_APP_NAME_LENGTH];
-    char app_build_id[MAX_ID_LENGTH];
-} FlipStoreAppInfo;
-
-static FlipStoreAppInfo *flip_catalog = NULL;
-
-static uint32_t app_selected_index = 0;
-static bool flip_store_sent_request = false;
-static bool flip_store_success = false;
-static bool flip_store_saved_data = false;
-static bool flip_store_saved_success = false;
-static uint32_t flip_store_category_index = 0;
-
-enum ObjectState
-{
-    OBJECT_EXPECT_KEY,
-    OBJECT_EXPECT_COLON,
-    OBJECT_EXPECT_VALUE,
-    OBJECT_EXPECT_COMMA_OR_END
-};
-
-static void flip_catalog_free()
-{
-    if (flip_catalog)
-    {
-        free(flip_catalog);
-        flip_catalog = NULL;
-    }
-}
-
-static bool flip_catalog_alloc()
-{
-    if (!flip_catalog)
-    {
-        flip_catalog = (FlipStoreAppInfo *)malloc(MAX_APP_COUNT * sizeof(FlipStoreAppInfo));
-    }
-    if (!flip_catalog)
+    FlipStoreAppInfo *app_catalog = (FlipStoreAppInfo *)malloc(MAX_APP_COUNT * sizeof(FlipStoreAppInfo));
+    if (!app_catalog)
     {
         FURI_LOG_E(TAG, "Failed to allocate memory for flip_catalog.");
-        return false;
+        return NULL;
     }
-    return true;
+    for (int i = 0; i < MAX_APP_COUNT; i++)
+    {
+        app_catalog[i].app_name = (char *)malloc(MAX_APP_NAME_LENGTH * sizeof(char));
+        if (!app_catalog[i].app_name)
+        {
+            FURI_LOG_E(TAG, "Failed to allocate memory for app_name.");
+            return NULL;
+        }
+        app_catalog[i].app_id = (char *)malloc(MAX_APP_NAME_LENGTH * sizeof(char));
+        if (!app_catalog[i].app_id)
+        {
+            FURI_LOG_E(TAG, "Failed to allocate memory for app_id.");
+            return NULL;
+        }
+        app_catalog[i].app_build_id = (char *)malloc(MAX_ID_LENGTH * sizeof(char));
+        if (!app_catalog[i].app_build_id)
+        {
+            FURI_LOG_E(TAG, "Failed to allocate memory for app_build_id.");
+            return NULL;
+        }
+    }
+    return app_catalog;
+}
+void flip_catalog_free()
+{
+    if (!flip_catalog)
+    {
+        return;
+    }
+    for (int i = 0; i < MAX_APP_COUNT; i++)
+    {
+        if (flip_catalog[i].app_name)
+        {
+            free(flip_catalog[i].app_name);
+        }
+        if (flip_catalog[i].app_id)
+        {
+            free(flip_catalog[i].app_id);
+        }
+        if (flip_catalog[i].app_build_id)
+        {
+            free(flip_catalog[i].app_build_id);
+        }
+    }
+    free(flip_catalog);
 }
 
 // Utility function to parse JSON incrementally from a file
-static bool flip_store_process_app_list(const char *file_path)
+bool flip_store_process_app_list()
 {
-    if (file_path == NULL)
-    {
-        FURI_LOG_E(TAG, "JSON file path is NULL.");
-        return false;
-    }
-
     // initialize the flip_catalog
-    if (!flip_catalog_alloc())
+    flip_catalog = flip_catalog_alloc();
+    if (!flip_catalog)
     {
         FURI_LOG_E(TAG, "Failed to allocate memory for flip_catalog.");
         return false;
@@ -113,7 +119,7 @@ static bool flip_store_process_app_list(const char *file_path)
         return false;
     }
 
-    if (!storage_file_open(_file, file_path, FSAM_READ, FSOM_OPEN_EXISTING))
+    if (!storage_file_open(_file, fhttp.file_path, FSAM_READ, FSOM_OPEN_EXISTING))
     {
         FURI_LOG_E(TAG, "Failed to open JSON file for reading.");
         storage_file_free(_file);
@@ -211,20 +217,17 @@ static bool flip_store_process_app_list(const char *file_path)
                         {
                             if (strcmp(current_key, "name") == 0)
                             {
-                                strncpy(flip_catalog[app_count].app_name, current_value, MAX_APP_NAME_LENGTH - 1);
-                                flip_catalog[app_count].app_name[MAX_APP_NAME_LENGTH - 1] = '\0';
+                                snprintf(flip_catalog[app_count].app_name, MAX_APP_NAME_LENGTH, "%.31s", current_value);
                                 found_name = true;
                             }
                             else if (strcmp(current_key, "id") == 0)
                             {
-                                strncpy(flip_catalog[app_count].app_id, current_value, MAX_APP_NAME_LENGTH - 1);
-                                flip_catalog[app_count].app_id[MAX_APP_NAME_LENGTH - 1] = '\0';
+                                snprintf(flip_catalog[app_count].app_id, MAX_ID_LENGTH, "%.31s", current_value);
                                 found_id = true;
                             }
                             else if (strcmp(current_key, "build_id") == 0)
                             {
-                                strncpy(flip_catalog[app_count].app_build_id, current_value, MAX_APP_NAME_LENGTH - 1);
-                                flip_catalog[app_count].app_build_id[MAX_ID_LENGTH - 1] = '\0';
+                                snprintf(flip_catalog[app_count].app_build_id, MAX_ID_LENGTH, "%.31s", current_value);
                                 found_build_id = true;
                             }
 
@@ -329,18 +332,14 @@ static bool flip_store_process_app_list(const char *file_path)
     storage_file_free(_file);
     furi_record_close(RECORD_STORAGE);
 
-    if (app_count == 0)
-    {
-        FURI_LOG_E(TAG, "No valid apps were parsed.");
-        return false;
-    }
-    return true;
+    return app_count > 0;
 }
 
-static bool flip_store_get_fap_file(char *build_id, uint8_t target, uint16_t api_major, uint16_t api_minor)
+bool flip_store_get_fap_file(char *build_id, uint8_t target, uint16_t api_major, uint16_t api_minor)
 {
-    is_compile_app_request = true;
-    char url[164];
+    char url[128];
+    fhttp.save_received_data = false;
+    fhttp.is_bytes_request = true;
     snprintf(url, sizeof(url), "https://catalog.flipperzero.one/api/v0/application/version/%s/build/compatible?target=f%d&api=%d.%d", build_id, target, api_major, api_minor);
     char *headers = jsmn("Content-Type", "application/octet-stream");
     bool sent_request = flipper_http_get_request_bytes(url, headers);
@@ -348,38 +347,28 @@ static bool flip_store_get_fap_file(char *build_id, uint8_t target, uint16_t api
     return sent_request;
 }
 
-static void flip_store_request_error(Canvas *canvas)
+void flip_store_request_error(Canvas *canvas)
 {
-    if (fhttp.received_data == NULL)
+    if (fhttp.last_response != NULL)
     {
-        if (fhttp.last_response != NULL)
+        if (strstr(fhttp.last_response, "[ERROR] Not connected to Wifi. Failed to reconnect.") != NULL)
         {
-            if (strstr(fhttp.last_response, "[ERROR] Not connected to Wifi. Failed to reconnect.") != NULL)
-            {
-                canvas_clear(canvas);
-                canvas_draw_str(canvas, 0, 10, "[ERROR] Not connected to Wifi.");
-                canvas_draw_str(canvas, 0, 50, "Update your WiFi settings.");
-                canvas_draw_str(canvas, 0, 60, "Press BACK to return.");
-            }
-            else if (strstr(fhttp.last_response, "[ERROR] Failed to connect to Wifi.") != NULL)
-            {
-                canvas_clear(canvas);
-                canvas_draw_str(canvas, 0, 10, "[ERROR] Not connected to Wifi.");
-                canvas_draw_str(canvas, 0, 50, "Update your WiFi settings.");
-                canvas_draw_str(canvas, 0, 60, "Press BACK to return.");
-            }
-            else
-            {
-                FURI_LOG_E(TAG, "Received an error: %s", fhttp.last_response);
-                canvas_draw_str(canvas, 0, 42, "Unusual error...");
-                canvas_draw_str(canvas, 0, 50, "Update your WiFi settings.");
-                canvas_draw_str(canvas, 0, 60, "Press BACK to return.");
-            }
+            canvas_clear(canvas);
+            canvas_draw_str(canvas, 0, 10, "[ERROR] Not connected to Wifi.");
+            canvas_draw_str(canvas, 0, 50, "Update your WiFi settings.");
+            canvas_draw_str(canvas, 0, 60, "Press BACK to return.");
+        }
+        else if (strstr(fhttp.last_response, "[ERROR] Failed to connect to Wifi.") != NULL)
+        {
+            canvas_clear(canvas);
+            canvas_draw_str(canvas, 0, 10, "[ERROR] Not connected to Wifi.");
+            canvas_draw_str(canvas, 0, 50, "Update your WiFi settings.");
+            canvas_draw_str(canvas, 0, 60, "Press BACK to return.");
         }
         else
         {
-            canvas_clear(canvas);
-            canvas_draw_str(canvas, 0, 10, "[ERROR] Unknown error.");
+            FURI_LOG_E(TAG, "Received an error: %s", fhttp.last_response);
+            canvas_draw_str(canvas, 0, 42, "Unusual error...");
             canvas_draw_str(canvas, 0, 50, "Update your WiFi settings.");
             canvas_draw_str(canvas, 0, 60, "Press BACK to return.");
         }
@@ -387,12 +376,13 @@ static void flip_store_request_error(Canvas *canvas)
     else
     {
         canvas_clear(canvas);
-        canvas_draw_str(canvas, 0, 10, "Failed to receive data.");
+        canvas_draw_str(canvas, 0, 10, "[ERROR] Unknown error.");
+        canvas_draw_str(canvas, 0, 50, "Update your WiFi settings.");
         canvas_draw_str(canvas, 0, 60, "Press BACK to return.");
     }
 }
 // function to handle the entire installation process "asynchronously"
-static bool flip_store_install_app(Canvas *canvas, char *category)
+bool flip_store_install_app(Canvas *canvas, char *category)
 {
     // create /apps/FlipStore directory if it doesn't exist
     char directory_path[128];
@@ -403,12 +393,9 @@ static bool flip_store_install_app(Canvas *canvas, char *category)
     storage_common_mkdir(storage, directory_path);
 
     // Adjusted to access flip_catalog as an array of structures
-    char *app_name = flip_catalog[app_selected_index].app_name;
-    char installing_text[128];
-    snprintf(installing_text, sizeof(installing_text), "Installing %s", app_name);
-    char bin_path[256];
-    snprintf(bin_path, sizeof(bin_path), STORAGE_EXT_PATH_PREFIX "/apps/%s/%s.fap", category, flip_catalog[app_selected_index].app_id);
-    strncpy(fhttp.file_path, bin_path, sizeof(fhttp.file_path) - 1);
+    char installing_text[64];
+    snprintf(installing_text, sizeof(installing_text), "Installing %s", flip_catalog[app_selected_index].app_name);
+    snprintf(fhttp.file_path, sizeof(fhttp.file_path), STORAGE_EXT_PATH_PREFIX "/apps/%s/%s.fap", category, flip_catalog[app_selected_index].app_id);
     canvas_draw_str(canvas, 0, 10, installing_text);
     canvas_draw_str(canvas, 0, 20, "Sending request..");
     uint8_t target = furi_hal_version_get_hw_target();
@@ -433,7 +420,7 @@ static bool flip_store_install_app(Canvas *canvas, char *category)
         furi_delay_ms(10);
     }
     // furi_timer_stop(fhttp.get_timeout_timer);
-    if (fhttp.state == ISSUE || fhttp.received_data == NULL)
+    if (fhttp.state == ISSUE)
     {
         flip_store_request_error(canvas);
         flip_store_success = false;
@@ -444,7 +431,7 @@ static bool flip_store_install_app(Canvas *canvas, char *category)
 }
 
 // process the app list and return view
-static int32_t flip_store_handle_app_list(FlipStoreApp *app, int32_t success_view, char *category, Submenu **submenu)
+int32_t flip_store_handle_app_list(FlipStoreApp *app, int32_t success_view, char *category, Submenu **submenu)
 {
     // reset the flip_catalog
     if (flip_catalog)
@@ -458,18 +445,27 @@ static int32_t flip_store_handle_app_list(FlipStoreApp *app, int32_t success_vie
         return FlipStoreViewPopup;
     }
     char url[128];
-    is_compile_app_request = false;
-    // append the category to the end of the url
+    snprintf(
+        fhttp.file_path,
+        sizeof(fhttp.file_path),
+        STORAGE_EXT_PATH_PREFIX "/apps_data/flip_store/apps.txt");
+
+    fhttp.save_received_data = true;
+    fhttp.is_bytes_request = false;
     snprintf(url, sizeof(url), "https://www.flipsocial.net/api/flipper/apps/%s/extended/", category);
+    char *headers = jsmn("Content-Type", "application/json");
     // async call to the app list with timer
-    if (fhttp.state != INACTIVE && flipper_http_get_request_with_headers(url, jsmn("Content-Type", "application/json")))
+    if (fhttp.state != INACTIVE && flipper_http_get_request_with_headers(url, headers))
     {
         furi_timer_start(fhttp.get_timeout_timer, TIMEOUT_DURATION_TICKS);
+        free(headers);
         fhttp.state = RECEIVING;
     }
     else
     {
         FURI_LOG_E(TAG, "Failed to send the request");
+        free(headers);
+        fhttp.state = ISSUE;
         return FlipStoreViewPopup;
     }
     while (fhttp.state == RECEIVING && furi_timer_is_running(fhttp.get_timeout_timer) > 0)
@@ -478,11 +474,11 @@ static int32_t flip_store_handle_app_list(FlipStoreApp *app, int32_t success_vie
         furi_delay_ms(100);
     }
     furi_timer_stop(fhttp.get_timeout_timer);
-    if (fhttp.state == ISSUE || fhttp.received_data == NULL)
+    if (fhttp.state == ISSUE)
     {
-        if (fhttp.received_data == NULL)
+        FURI_LOG_E(TAG, "Failed to receive data");
+        if (fhttp.last_response == NULL)
         {
-            FURI_LOG_E(TAG, "Failed to receive data");
             if (fhttp.last_response != NULL)
             {
                 if (strstr(fhttp.last_response, "[ERROR] Not connected to Wifi. Failed to reconnect.") != NULL)
@@ -506,7 +502,6 @@ static int32_t flip_store_handle_app_list(FlipStoreApp *app, int32_t success_vie
         }
         else
         {
-            FURI_LOG_E(TAG, "Failed to receive data");
             popup_set_text(app->popup, "Failed to received data.", 0, 10, AlignLeft, AlignTop);
             return FlipStoreViewPopup;
         }
@@ -514,8 +509,7 @@ static int32_t flip_store_handle_app_list(FlipStoreApp *app, int32_t success_vie
     else
     {
         // process the app list
-        const char *output_file_path = STORAGE_EXT_PATH_PREFIX "/apps_data/" http_tag "/received_data.txt";
-        if (flip_store_process_app_list(output_file_path))
+        if (flip_store_process_app_list())
         {
             submenu_reset(*submenu);
             // add each app name to submenu
@@ -536,5 +530,3 @@ static int32_t flip_store_handle_app_list(FlipStoreApp *app, int32_t success_vie
         }
     }
 }
-
-#endif // FLIP_STORE_APPS_H

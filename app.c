@@ -1,8 +1,5 @@
-#include <flip_store_e.h>
-#include <flip_store_storage.h>
-#include <flip_store_callback.h>
-#include <flip_store_i.h>
-#include <flip_store_free.h>
+#include <flip_store.h>
+#include <alloc/flip_store_alloc.h>
 
 // Entry point for the Hello World application
 int32_t main_flip_store(void *p)

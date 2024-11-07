@@ -1,14 +1,7 @@
-#ifndef FLIP_STORE_CALLBACK_H
-#define FLIP_STORE_CALLBACK_H
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <ctype.h>
-#include <stdbool.h>
-#include <flip_store_apps.h>
+#include <callback/flip_store_callback.h>
 
 // Callback for drawing the main screen
-static void flip_store_view_draw_callback_main(Canvas *canvas, void *model)
+void flip_store_view_draw_callback_main(Canvas *canvas, void *model)
 {
     UNUSED(model);
     canvas_set_font(canvas, FontSecondary);
@@ -62,7 +55,7 @@ static void flip_store_view_draw_callback_main(Canvas *canvas, void *model)
     }
 }
 
-static void flip_store_view_draw_callback_app_list(Canvas *canvas, void *model)
+void flip_store_view_draw_callback_app_list(Canvas *canvas, void *model)
 {
     UNUSED(model);
     canvas_clear(canvas);
@@ -77,7 +70,7 @@ static void flip_store_view_draw_callback_app_list(Canvas *canvas, void *model)
     canvas_draw_str_aligned(canvas, 97, 54, AlignLeft, AlignTop, "Install");
 }
 
-static bool flip_store_input_callback(InputEvent *event, void *context)
+bool flip_store_input_callback(InputEvent *event, void *context)
 {
     FlipStoreApp *app = (FlipStoreApp *)context;
     if (!app)
@@ -114,7 +107,7 @@ static bool flip_store_input_callback(InputEvent *event, void *context)
     return false;
 }
 
-static void flip_store_text_updated_ssid(void *context)
+void flip_store_text_updated_ssid(void *context)
 {
     FlipStoreApp *app = (FlipStoreApp *)context;
     if (!app)
@@ -151,7 +144,7 @@ static void flip_store_text_updated_ssid(void *context)
     // switch to the settings view
     view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewSettings);
 }
-static void flip_store_text_updated_pass(void *context)
+void flip_store_text_updated_pass(void *context)
 {
     FlipStoreApp *app = (FlipStoreApp *)context;
     if (!app)
@@ -189,7 +182,7 @@ static void flip_store_text_updated_pass(void *context)
     view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewSettings);
 }
 
-static uint32_t callback_to_submenu(void *context)
+uint32_t callback_to_submenu(void *context)
 {
     if (!context)
     {
@@ -200,7 +193,7 @@ static uint32_t callback_to_submenu(void *context)
     return FlipStoreViewSubmenu;
 }
 
-static uint32_t callback_to_app_list(void *context)
+uint32_t callback_to_app_list(void *context)
 {
     if (!context)
     {
@@ -212,10 +205,11 @@ static uint32_t callback_to_app_list(void *context)
     flip_store_success = false;
     flip_store_saved_data = false;
     flip_store_saved_success = false;
+    flip_catalog_free();
     return FlipStoreViewAppList;
 }
 
-static void settings_item_selected(void *context, uint32_t index)
+void settings_item_selected(void *context, uint32_t index)
 {
     FlipStoreApp *app = (FlipStoreApp *)context;
     if (!app)
@@ -274,7 +268,7 @@ void popup_callback(void *context)
  * @param context The context - unused
  * @return next view id (VIEW_NONE to exit the app)
  */
-static uint32_t callback_exit_app(void *context)
+uint32_t callback_exit_app(void *context)
 {
     // Exit the application
     if (!context)
@@ -286,7 +280,7 @@ static uint32_t callback_exit_app(void *context)
     return VIEW_NONE; // Return VIEW_NONE to exit the app
 }
 
-static void callback_submenu_choices(void *context, uint32_t index)
+void callback_submenu_choices(void *context, uint32_t index)
 {
     FlipStoreApp *app = (FlipStoreApp *)context;
     if (!app)
@@ -389,5 +383,3 @@ static void callback_submenu_choices(void *context, uint32_t index)
         break;
     }
 }
-
-#endif // FLIP_STORE_CALLBACK_H

@@ -1,25 +1,4 @@
-#ifndef EASY_FLIPPER_H
-#define EASY_FLIPPER_H
-
-#include <malloc.h>
-#include <furi.h>
-#include <furi_hal.h>
-#include <gui/gui.h>
-#include <gui/view.h>
-#include <gui/modules/submenu.h>
-#include <gui/view_dispatcher.h>
-#include <gui/modules/menu.h>
-#include <gui/modules/submenu.h>
-#include <gui/modules/widget.h>
-#include <gui/modules/text_input.h>
-#include <gui/modules/text_box.h>
-#include <gui/modules/variable_item_list.h>
-#include <gui/modules/dialog_ex.h>
-#include <gui/modules/popup.h>
-#include <gui/modules/loading.h>
-#include <uart_text_input.h>
-
-#define EASY_TAG "EasyFlipper"
+#include <easy_flipper/easy_flipper.h>
 
 /**
  * @brief Navigation callback for exiting the application
@@ -589,5 +568,3 @@ bool easy_flipper_set_char_to_furi_string(FuriString **furi_string, char *buffer
     furi_string_set_str(*furi_string, buffer);
     return true;
 }
-
-#endif // EASY_FLIPPER_H

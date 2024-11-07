@@ -1,8 +1,6 @@
-#ifndef FLIP_STORE_I_H
-#define FLIP_STORE_I_H
-
+#include <alloc/flip_store_alloc.h>
 // Function to allocate resources for the FlipStoreApp
-static FlipStoreApp *flip_store_app_alloc()
+FlipStoreApp *flip_store_app_alloc()
 {
     FlipStoreApp *app = (FlipStoreApp *)malloc(sizeof(FlipStoreApp));
 
@@ -107,7 +105,7 @@ static FlipStoreApp *flip_store_app_alloc()
     app->variable_item_pass = variable_item_list_add(app->variable_item_list, "Password", 0, NULL, NULL);
 
     // Submenu
-    if (!easy_flipper_set_submenu(&app->submenu, FlipStoreViewSubmenu, "FlipStore", callback_exit_app, &app->view_dispatcher))
+    if (!easy_flipper_set_submenu(&app->submenu, FlipStoreViewSubmenu, "FlipStore v0.3", callback_exit_app, &app->view_dispatcher))
     {
         return NULL;
     }
@@ -203,5 +201,3 @@ static FlipStoreApp *flip_store_app_alloc()
 
     return app;
 }
-
-#endif // FLIP_STORE_I_H

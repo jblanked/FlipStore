@@ -20,7 +20,7 @@ Download Flipper Zero apps directly to your Flipper Zero using WiFi. You no long
 - App Categories
 
 **v0.3**
-- Caching
+- Improved memory allocation
 - Stability Patch 2
 - App Catalog Patch (add in required functionalility)
 

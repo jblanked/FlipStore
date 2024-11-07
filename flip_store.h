@@ -1,8 +1,8 @@
 #ifndef FLIP_STORE_E_H
 #define FLIP_STORE_E_H
-#include <uart_text_input.h>
-#include <flipper_http.h>
-#include <easy_flipper.h>
+#include <text_input/uart_text_input.h>
+#include <flipper_http/flipper_http.h>
+#include <easy_flipper/easy_flipper.h>
 #include <furi.h>
 #include <furi_hal.h>
 #include <gui/gui.h>
@@ -11,23 +11,12 @@
 #include <gui/view_dispatcher.h>
 #include <notification/notification.h>
 #include <dialogs/dialogs.h>
-#include <jsmn.h>
+#include <jsmn/jsmn.h>
+#include <flip_store_icons.h>
 #define TAG "FlipStore"
 
 // define the list of categories
-char *categories[] = {
-    "Bluetooth",
-    "Games",
-    "GPIO",
-    "Infrared",
-    "iButton",
-    "Media",
-    "NFC",
-    "RFID",
-    "Sub-GHz",
-    "Tools",
-    "USB",
-};
+extern char *categories[];
 
 // Define the submenu items for our FlipStore application
 typedef enum
@@ -122,23 +111,6 @@ typedef struct
     uint32_t uart_text_input_buffer_size_pass; // Size of the text input buffer
 } FlipStoreApp;
 
-// include strndup (otherwise NULL pointer dereference)
-char *strndup(const char *s, size_t n)
-{
-    char *result;
-    size_t len = strlen(s);
-
-    if (n < len)
-        len = n;
-
-    result = (char *)malloc(len + 1);
-    if (!result)
-        return NULL;
-
-    result[len] = '\0';
-    return (char *)memcpy(result, s, len);
-}
-
-static void callback_submenu_choices(void *context, uint32_t index);
+void flip_store_app_free(FlipStoreApp *app);
 
 #endif // FLIP_STORE_E_H
