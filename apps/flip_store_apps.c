@@ -61,7 +61,6 @@ void flip_catalog_free()
             free(flip_catalog[i].app_build_id);
         }
     }
-    free(flip_catalog);
 }
 
 // Utility function to parse JSON incrementally from a file
@@ -434,10 +433,7 @@ bool flip_store_install_app(Canvas *canvas, char *category)
 int32_t flip_store_handle_app_list(FlipStoreApp *app, int32_t success_view, char *category, Submenu **submenu)
 {
     // reset the flip_catalog
-    if (flip_catalog)
-    {
-        flip_catalog_free();
-    }
+    flip_catalog_free();
 
     if (!app)
     {

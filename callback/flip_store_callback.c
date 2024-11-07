@@ -205,7 +205,6 @@ uint32_t callback_to_app_list(void *context)
     flip_store_success = false;
     flip_store_saved_data = false;
     flip_store_saved_success = false;
-    flip_catalog_free();
     return FlipStoreViewAppList;
 }
 
