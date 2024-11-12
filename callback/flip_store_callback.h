@@ -9,6 +9,8 @@
 #include <apps/flip_store_apps.h>
 #include <flip_storage/flip_store_storage.h>
 
+extern bool flip_store_app_does_exist;
+
 // Callback for drawing the main screen
 void flip_store_view_draw_callback_main(Canvas *canvas, void *model);
 
@@ -29,11 +31,7 @@ void settings_item_selected(void *context, uint32_t index);
 void dialog_callback(DialogExResult result, void *context);
 
 void popup_callback(void *context);
-/**
- * @brief Navigation callback for exiting the application
- * @param context The context - unused
- * @return next view id (VIEW_NONE to exit the app)
- */
+
 uint32_t callback_exit_app(void *context);
 void callback_submenu_choices(void *context, uint32_t index);
 

@@ -1,3 +1,7 @@
+## v0.4
+- Added an option to delete apps
+- Edit by Willy-JL
+
 ## v0.3
 - Edits by Willy-JL
 - Improved memory allocation

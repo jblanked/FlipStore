@@ -105,7 +105,7 @@ FlipStoreApp *flip_store_app_alloc()
     app->variable_item_pass = variable_item_list_add(app->variable_item_list, "Password", 0, NULL, NULL);
 
     // Submenu
-    if (!easy_flipper_set_submenu(&app->submenu, FlipStoreViewSubmenu, "FlipStore v0.3", callback_exit_app, &app->view_dispatcher))
+    if (!easy_flipper_set_submenu(&app->submenu, FlipStoreViewSubmenu, "FlipStore v0.4", callback_exit_app, &app->view_dispatcher))
     {
         return NULL;
     }

@@ -1,5 +1,7 @@
 #include <callback/flip_store_callback.h>
 
+bool flip_store_app_does_exist = false;
+
 // Callback for drawing the main screen
 void flip_store_view_draw_callback_main(Canvas *canvas, void *model)
 {
@@ -60,12 +62,19 @@ void flip_store_view_draw_callback_app_list(Canvas *canvas, void *model)
     UNUSED(model);
     canvas_clear(canvas);
     canvas_set_font(canvas, FontPrimary);
-    // Adjusted to access flip_catalog as an array of structures
     canvas_draw_str(canvas, 0, 10, flip_catalog[app_selected_index].app_name);
-    // canvas_draw_icon(canvas, 0, 53, &I_ButtonLeft_4x7); (future implementation)
-    //  canvas_draw_str_aligned(canvas, 7, 54, AlignLeft, AlignTop, "Delete");  (future implementation)
-    canvas_draw_icon(canvas, 0, 53, &I_ButtonBACK_10x8);
-    canvas_draw_str_aligned(canvas, 12, 54, AlignLeft, AlignTop, "Back");
+    if (flip_store_app_does_exist)
+    {
+        canvas_draw_icon(canvas, 0, 53, &I_ButtonLeft_4x7);
+        canvas_draw_str_aligned(canvas, 7, 54, AlignLeft, AlignTop, "Delete");
+        canvas_draw_icon(canvas, 45, 53, &I_ButtonBACK_10x8);
+        canvas_draw_str_aligned(canvas, 57, 54, AlignLeft, AlignTop, "Back");
+    }
+    else
+    {
+        canvas_draw_icon(canvas, 0, 53, &I_ButtonBACK_10x8);
+        canvas_draw_str_aligned(canvas, 12, 54, AlignLeft, AlignTop, "Back");
+    }
     canvas_draw_icon(canvas, 90, 53, &I_ButtonRight_4x7);
     canvas_draw_str_aligned(canvas, 97, 54, AlignLeft, AlignTop, "Install");
 }
@@ -80,13 +89,12 @@ bool flip_store_input_callback(InputEvent *event, void *context)
     }
     if (event->type == InputTypeShort)
     {
-        // Future implementation
-        // if (event->key == InputKeyLeft)
-        //{
-        // Left button clicked, delete the app with DialogEx confirmation
-        // view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewAppDelete);
-        //    return true;
-        //}
+        if (event->key == InputKeyLeft && flip_store_app_does_exist)
+        {
+            // Left button clicked, delete the app
+            view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewAppDelete);
+            return true;
+        }
         if (event->key == InputKeyRight)
         {
             // Right button clicked, download the app
@@ -205,6 +213,7 @@ uint32_t callback_to_app_list(void *context)
     flip_store_success = false;
     flip_store_saved_data = false;
     flip_store_saved_success = false;
+    flip_store_app_does_exist = false;
     return FlipStoreViewAppList;
 }
 
@@ -241,13 +250,24 @@ void dialog_callback(DialogExResult result, void *context)
     else if (result == DialogExResultRight)
     {
         // delete the app then return to the app list
-
-        // pop up a message
-        popup_set_header(app->popup, "Success", 0, 0, AlignLeft, AlignTop);
-        popup_set_text(app->popup, "App deleted successfully.", 0, 60, AlignLeft, AlignTop);
-        view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewPopup);
-        furi_delay_ms(2000); // delay for 2 seconds
-        view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewAppList);
+        if (!delete_app(flip_catalog[app_selected_index].app_id, categories[flip_store_category_index]))
+        {
+            // pop up a message
+            popup_set_header(app->popup, "[ERROR]", 0, 0, AlignLeft, AlignTop);
+            popup_set_text(app->popup, "Issue deleting app.", 0, 50, AlignLeft, AlignTop);
+            view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewPopup);
+            furi_delay_ms(2000); // delay for 2 seconds
+            view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewAppList);
+        }
+        else
+        {
+            // pop up a message
+            popup_set_header(app->popup, "[SUCCESS]", 0, 0, AlignLeft, AlignTop);
+            popup_set_text(app->popup, "App deleted successfully.", 0, 50, AlignLeft, AlignTop);
+            view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewPopup);
+            furi_delay_ms(2000); // delay for 2 seconds
+            view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewAppList);
+        }
     }
 }
 
@@ -262,11 +282,6 @@ void popup_callback(void *context)
     view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewSubmenu);
 }
 
-/**
- * @brief Navigation callback for exiting the application
- * @param context The context - unused
- * @return next view id (VIEW_NONE to exit the app)
- */
 uint32_t callback_exit_app(void *context)
 {
     // Exit the application
@@ -300,50 +315,62 @@ void callback_submenu_choices(void *context, uint32_t index)
         break;
     case FlipStoreSubmenuIndexAppList:
         flip_store_category_index = 0;
+        flip_store_app_does_exist = false;
         view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewAppList);
         break;
     case FlipStoreSubmenuIndexAppListBluetooth:
         flip_store_category_index = 0;
+        flip_store_app_does_exist = false;
         view_dispatcher_switch_to_view(app->view_dispatcher, flip_store_handle_app_list(app, FlipStoreViewAppListBluetooth, "Bluetooth", &app->submenu_app_list_bluetooth));
         break;
     case FlipStoreSubmenuIndexAppListGames:
         flip_store_category_index = 1;
+        flip_store_app_does_exist = false;
         view_dispatcher_switch_to_view(app->view_dispatcher, flip_store_handle_app_list(app, FlipStoreViewAppListGames, "Games", &app->submenu_app_list_games));
         break;
     case FlipStoreSubmenuIndexAppListGPIO:
         flip_store_category_index = 2;
+        flip_store_app_does_exist = false;
         view_dispatcher_switch_to_view(app->view_dispatcher, flip_store_handle_app_list(app, FlipStoreViewAppListGPIO, "GPIO", &app->submenu_app_list_gpio));
         break;
     case FlipStoreSubmenuIndexAppListInfrared:
         flip_store_category_index = 3;
+        flip_store_app_does_exist = false;
         view_dispatcher_switch_to_view(app->view_dispatcher, flip_store_handle_app_list(app, FlipStoreViewAppListInfrared, "Infrared", &app->submenu_app_list_infrared));
         break;
     case FlipStoreSubmenuIndexAppListiButton:
         flip_store_category_index = 4;
+        flip_store_app_does_exist = false;
         view_dispatcher_switch_to_view(app->view_dispatcher, flip_store_handle_app_list(app, FlipStoreViewAppListiButton, "iButton", &app->submenu_app_list_ibutton));
         break;
     case FlipStoreSubmenuIndexAppListMedia:
         flip_store_category_index = 5;
+        flip_store_app_does_exist = false;
         view_dispatcher_switch_to_view(app->view_dispatcher, flip_store_handle_app_list(app, FlipStoreViewAppListMedia, "Media", &app->submenu_app_list_media));
         break;
     case FlipStoreSubmenuIndexAppListNFC:
         flip_store_category_index = 6;
+        flip_store_app_does_exist = false;
         view_dispatcher_switch_to_view(app->view_dispatcher, flip_store_handle_app_list(app, FlipStoreViewAppListNFC, "NFC", &app->submenu_app_list_nfc));
         break;
     case FlipStoreSubmenuIndexAppListRFID:
         flip_store_category_index = 7;
+        flip_store_app_does_exist = false;
         view_dispatcher_switch_to_view(app->view_dispatcher, flip_store_handle_app_list(app, FlipStoreViewAppListRFID, "RFID", &app->submenu_app_list_rfid));
         break;
     case FlipStoreSubmenuIndexAppListSubGHz:
         flip_store_category_index = 8;
+        flip_store_app_does_exist = false;
         view_dispatcher_switch_to_view(app->view_dispatcher, flip_store_handle_app_list(app, FlipStoreViewAppListSubGHz, "Sub-GHz", &app->submenu_app_list_subghz));
         break;
     case FlipStoreSubmenuIndexAppListTools:
         flip_store_category_index = 9;
+        flip_store_app_does_exist = false;
         view_dispatcher_switch_to_view(app->view_dispatcher, flip_store_handle_app_list(app, FlipStoreViewAppListTools, "Tools", &app->submenu_app_list_tools));
         break;
     case FlipStoreSubmenuIndexAppListUSB:
         flip_store_category_index = 10;
+        flip_store_app_does_exist = false;
         view_dispatcher_switch_to_view(app->view_dispatcher, flip_store_handle_app_list(app, FlipStoreViewAppListUSB, "USB", &app->submenu_app_list_usb));
         break;
     default:
@@ -363,6 +390,7 @@ void callback_submenu_choices(void *context, uint32_t index)
                 if (app_name != NULL && strlen(app_name) > 0)
                 {
                     app_selected_index = app_index;
+                    flip_store_app_does_exist = app_exists(flip_catalog[app_selected_index].app_id, categories[flip_store_category_index]);
                     view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewAppInfo);
                 }
                 else
