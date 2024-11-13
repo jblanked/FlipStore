@@ -12,6 +12,9 @@
 #define MAX_APP_DESCRIPTION_LENGTH 100
 #define MAX_APP_VERSION_LENGTH 5
 
+// define the list of categories
+extern char *categories[];
+
 typedef struct
 {
     char *app_name;
@@ -46,8 +49,6 @@ void flip_catalog_free();
 bool flip_store_process_app_list();
 
 bool flip_store_get_fap_file(char *build_id, uint8_t target, uint16_t api_major, uint16_t api_minor);
-
-void flip_store_request_error(Canvas *canvas);
 
 // function to handle the entire installation process "asynchronously"
 bool flip_store_install_app(Canvas *canvas, char *category);

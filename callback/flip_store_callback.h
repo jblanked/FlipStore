@@ -7,14 +7,18 @@
 #include <ctype.h>
 #include <stdbool.h>
 #include <apps/flip_store_apps.h>
+#include <firmwares/flip_store_firmwares.h>
 #include <flip_storage/flip_store_storage.h>
 
 #define MAX_LINE_LENGTH 30
 
 extern bool flip_store_app_does_exist;
+extern uint32_t selected_firmware_index;
 
 // Callback for drawing the main screen
 void flip_store_view_draw_callback_main(Canvas *canvas, void *model);
+
+void flip_store_view_draw_callback_firmware(Canvas *canvas, void *model);
 
 // Function to draw the description on the canvas with word wrapping
 void draw_description(Canvas *canvas, const char *user_message, int x, int y);
@@ -31,11 +35,14 @@ uint32_t callback_to_submenu(void *context);
 
 uint32_t callback_to_submenu_options(void *context);
 
+uint32_t callback_to_firmware_list(void *context);
+
 uint32_t callback_to_app_list(void *context);
 
 void settings_item_selected(void *context, uint32_t index);
 
-void dialog_callback(DialogExResult result, void *context);
+void dialog_delete_callback(DialogExResult result, void *context);
+void dialog_firmware_callback(DialogExResult result, void *context);
 
 void popup_callback(void *context);
 

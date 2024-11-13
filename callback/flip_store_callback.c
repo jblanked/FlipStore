@@ -1,6 +1,7 @@
 #include <callback/flip_store_callback.h>
 
 bool flip_store_app_does_exist = false;
+uint32_t selected_firmware_index = 0;
 
 // Callback for drawing the main screen
 void flip_store_view_draw_callback_main(Canvas *canvas, void *model)
@@ -54,6 +55,168 @@ void flip_store_view_draw_callback_main(Canvas *canvas, void *model)
             canvas_draw_str(canvas, 0, 10, "Failed to install app.");
             canvas_draw_str(canvas, 0, 60, "Press BACK to return.");
         }
+    }
+}
+
+// Function to draw the firmware download screen
+void flip_store_view_draw_callback_firmware(Canvas *canvas, void *model)
+{
+    UNUSED(model);
+
+    // Check if the HTTP state is inactive
+    if (fhttp.state == INACTIVE)
+    {
+        canvas_set_font(canvas, FontSecondary);
+        canvas_draw_str(canvas, 0, 7, "Wifi Dev Board disconnected.");
+        canvas_draw_str(canvas, 0, 17, "Please connect to the board.");
+        canvas_draw_str(canvas, 0, 32, "If your board is connected,");
+        canvas_draw_str(canvas, 0, 42, "make sure you have flashed");
+        canvas_draw_str(canvas, 0, 52, "your WiFi Devboard with the");
+        canvas_draw_str(canvas, 0, 62, "latest FlipperHTTP flash.");
+        return;
+    }
+
+    // Set font and clear the canvas for the loading state
+    canvas_set_font(canvas, FontSecondary);
+    canvas_clear(canvas);
+    canvas_draw_str(canvas, 0, 10, "Loading...");
+
+    // Handle first firmware file
+    if (!sent_firmware_request)
+    {
+        sent_firmware_request = true;
+        firmware_request_success = flip_store_get_firmware_file(
+            firmwares[selected_firmware_index].links[0],
+            firmwares[selected_firmware_index].name,
+            strrchr(firmwares[selected_firmware_index].links[0], '/') + 1);
+
+        if (!firmware_request_success)
+        {
+            canvas_set_font(canvas, FontSecondary);
+            canvas_clear(canvas);
+            flip_store_request_error(canvas);
+        }
+        return;
+    }
+    else if (sent_firmware_request && !firmware_download_success)
+    {
+        if (!firmware_request_success || fhttp.state == ISSUE)
+        {
+            canvas_set_font(canvas, FontSecondary);
+            canvas_clear(canvas);
+            flip_store_request_error(canvas);
+        }
+        else if (fhttp.state == RECEIVING)
+        {
+            canvas_set_font(canvas, FontSecondary);
+            canvas_clear(canvas);
+            canvas_draw_str(canvas, 0, 10, "Downloading file 1...");
+            canvas_draw_str(canvas, 0, 60, "Please wait...");
+        }
+        else if (fhttp.state == IDLE)
+        {
+            canvas_set_font(canvas, FontSecondary);
+            canvas_clear(canvas);
+            canvas_draw_str(canvas, 0, 10, "Success");
+            canvas_draw_str(canvas, 0, 60, "Downloading the next file now.");
+            firmware_download_success = true;
+        }
+        return;
+    }
+
+    // Handle second firmware file
+    if (firmware_download_success && !sent_firmware_request_2)
+    {
+        sent_firmware_request_2 = true;
+        firmware_request_success_2 = flip_store_get_firmware_file(
+            firmwares[selected_firmware_index].links[1],
+            firmwares[selected_firmware_index].name,
+            strrchr(firmwares[selected_firmware_index].links[1], '/') + 1);
+
+        if (!firmware_request_success_2)
+        {
+            canvas_set_font(canvas, FontSecondary);
+            canvas_clear(canvas);
+            flip_store_request_error(canvas);
+        }
+        return;
+    }
+    else if (sent_firmware_request_2 && !firmware_download_success_2)
+    {
+        if (!firmware_request_success_2 || fhttp.state == ISSUE)
+        {
+            canvas_set_font(canvas, FontSecondary);
+            canvas_clear(canvas);
+            flip_store_request_error(canvas);
+        }
+        else if (fhttp.state == RECEIVING)
+        {
+            canvas_set_font(canvas, FontSecondary);
+            canvas_clear(canvas);
+            canvas_draw_str(canvas, 0, 10, "Downloading file 2...");
+            canvas_draw_str(canvas, 0, 60, "Please wait...");
+        }
+        else if (fhttp.state == IDLE)
+        {
+            canvas_set_font(canvas, FontSecondary);
+            canvas_clear(canvas);
+            canvas_draw_str(canvas, 0, 10, "Success");
+            canvas_draw_str(canvas, 0, 60, "Downloading the next file now.");
+            firmware_download_success_2 = true;
+        }
+        return;
+    }
+
+    // Handle third firmware file
+    if (firmware_download_success && firmware_download_success_2 && !sent_firmware_request_3)
+    {
+        sent_firmware_request_3 = true;
+        firmware_request_success_3 = flip_store_get_firmware_file(
+            firmwares[selected_firmware_index].links[2],
+            firmwares[selected_firmware_index].name,
+            strrchr(firmwares[selected_firmware_index].links[2], '/') + 1);
+
+        if (!firmware_request_success_3)
+        {
+            canvas_set_font(canvas, FontSecondary);
+            canvas_clear(canvas);
+            flip_store_request_error(canvas);
+        }
+        return;
+    }
+    else if (sent_firmware_request_3 && !firmware_download_success_3)
+    {
+        if (!firmware_request_success_3 || fhttp.state == ISSUE)
+        {
+            canvas_set_font(canvas, FontSecondary);
+            canvas_clear(canvas);
+            flip_store_request_error(canvas);
+        }
+        else if (fhttp.state == RECEIVING)
+        {
+            canvas_set_font(canvas, FontSecondary);
+            canvas_clear(canvas);
+            canvas_draw_str(canvas, 0, 10, "Downloading file 3...");
+            canvas_draw_str(canvas, 0, 60, "Please wait...");
+        }
+        else if (fhttp.state == IDLE)
+        {
+            canvas_set_font(canvas, FontSecondary);
+            canvas_clear(canvas);
+            canvas_draw_str(canvas, 0, 10, "Success");
+            canvas_draw_str(canvas, 0, 60, "Press BACK to return.");
+            firmware_download_success_3 = true;
+        }
+        return;
+    }
+
+    // All files downloaded successfully
+    if (firmware_download_success && firmware_download_success_2 && firmware_download_success_3)
+    {
+        canvas_set_font(canvas, FontSecondary);
+        canvas_clear(canvas);
+        canvas_draw_str(canvas, 0, 10, "Files downloaded successfully.");
+        canvas_draw_str(canvas, 0, 60, "Press BACK to return.");
     }
 }
 
@@ -263,6 +426,7 @@ uint32_t callback_to_submenu(void *context)
         return VIEW_NONE;
     }
     UNUSED(context);
+    firmware_free();
     return FlipStoreViewSubmenu;
 }
 
@@ -274,7 +438,30 @@ uint32_t callback_to_submenu_options(void *context)
         return VIEW_NONE;
     }
     UNUSED(context);
+    firmware_free();
     return FlipStoreViewSubmenuOptions;
+}
+
+uint32_t callback_to_firmware_list(void *context)
+{
+    if (!context)
+    {
+        FURI_LOG_E(TAG, "Context is NULL");
+        return VIEW_NONE;
+    }
+    UNUSED(context);
+    sent_firmware_request = false;
+    sent_firmware_request_2 = false;
+    sent_firmware_request_3 = false;
+    //
+    firmware_request_success = false;
+    firmware_request_success_2 = false;
+    firmware_request_success_3 = false;
+    //
+    firmware_download_success = false;
+    firmware_download_success_2 = false;
+    firmware_download_success_3 = false;
+    return FlipStoreViewFirmwares;
 }
 
 uint32_t callback_to_app_list(void *context)
@@ -290,6 +477,7 @@ uint32_t callback_to_app_list(void *context)
     flip_store_saved_data = false;
     flip_store_saved_success = false;
     flip_store_app_does_exist = false;
+    sent_firmware_request = false;
     return FlipStoreViewAppList;
 }
 
@@ -315,7 +503,7 @@ void settings_item_selected(void *context, uint32_t index)
     }
 }
 
-void dialog_callback(DialogExResult result, void *context)
+void dialog_delete_callback(DialogExResult result, void *context)
 {
     furi_assert(context);
     FlipStoreApp *app = (FlipStoreApp *)context;
@@ -344,6 +532,22 @@ void dialog_callback(DialogExResult result, void *context)
             furi_delay_ms(2000); // delay for 2 seconds
             view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewAppList);
         }
+    }
+}
+
+void dialog_firmware_callback(DialogExResult result, void *context)
+{
+    furi_assert(context);
+    FlipStoreApp *app = (FlipStoreApp *)context;
+    if (result == DialogExResultLeft) // No
+    {
+        // switch to the firmware list
+        view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewFirmwares);
+    }
+    else if (result == DialogExResultRight)
+    {
+        // download the firmware then return to the firmware list
+        view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewFirmwareDownload);
     }
 }
 
@@ -398,6 +602,23 @@ void callback_submenu_choices(void *context, uint32_t index)
         view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewAppList);
         break;
     case FlipStoreSubmenuIndexFirmwares:
+        if (!app->submenu_firmwares)
+        {
+            FURI_LOG_E(TAG, "Submenu firmwares is NULL");
+            return;
+        }
+        firmwares = firmware_alloc();
+        if (firmwares == NULL)
+        {
+            FURI_LOG_E(TAG, "Failed to allocate memory for firmwares");
+            return;
+        }
+        submenu_reset(app->submenu_firmwares);
+        submenu_set_header(app->submenu_firmwares, "ESP32 Firmwares");
+        for (int i = 0; i < FIRMWARE_COUNT; i++)
+        {
+            submenu_add_item(app->submenu_firmwares, firmwares[i].name, FlipStoreSubmenuIndexStartFirmwares + i, callback_submenu_choices, app);
+        }
         view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewFirmwares);
         break;
     case FlipStoreSubmenuIndexAppListBluetooth:
@@ -463,28 +684,21 @@ void callback_submenu_choices(void *context, uint32_t index)
             uint32_t firmware_index = index - FlipStoreSubmenuIndexStartFirmwares;
 
             // Check if the firmware index is valid
-            if ((int)firmware_index >= 0 && firmware_index < 3)
+            if ((int)firmware_index >= 0 && firmware_index < FIRMWARE_COUNT)
             {
                 // Get the firmware name
-                char *firmware_name = firmwares[firmware_index];
+                selected_firmware_index = firmware_index;
 
-                // Check if the firmware name is valid
-                if (firmware_name != NULL && strlen(firmware_name) > 0)
-                {
-                    // do nothing for now
-                    popup_set_header(app->popup, firmware_name, 0, 0, AlignLeft, AlignTop);
-                    popup_set_text(app->popup, "Not implemented yet :D", 0, 50, AlignLeft, AlignTop);
-
-                    view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewPopup);
-                }
-                else
-                {
-                    FURI_LOG_E(TAG, "Invalid firmware name");
-                }
+                // Switch to the firmware download view
+                dialog_ex_set_header(app->dialog_firmware, firmwares[firmware_index].name, 0, 0, AlignLeft, AlignTop);
+                view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewFirmwareDialog);
             }
             else
             {
                 FURI_LOG_E(TAG, "Invalid firmware index");
+                popup_set_header(app->popup, "[ERROR]", 0, 0, AlignLeft, AlignTop);
+                popup_set_text(app->popup, "Issue parsing firmwarex", 0, 50, AlignLeft, AlignTop);
+                view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewPopup);
             }
         }
         // Check if the index is within the app list range

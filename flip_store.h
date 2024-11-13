@@ -14,10 +14,8 @@
 #include <jsmn/jsmn.h>
 #include <flip_store_icons.h>
 #define TAG "FlipStore"
-
-// define the list of categories
-extern char *categories[];
-extern char *firmwares[];
+#define FIRMWARE_COUNT 3
+#define FIRMWARE_LINKS 3
 
 // Define the submenu items for our FlipStore application
 typedef enum
@@ -51,7 +49,7 @@ typedef enum
 // Define a single view for our FlipStore application
 typedef enum
 {
-    FlipStoreViewMain, // The main screen
+    FlipStoreViewMain, // The main screen for downloading apps
     //
     FlipStoreViewSubmenu,        // The submenu
     FlipStoreViewSubmenuOptions, // The submenu options
@@ -63,8 +61,10 @@ typedef enum
     //
     FlipStoreViewPopup, // The popup screen
     //
-    FlipStoreViewAppList,   // The app list screen
-    FlipStoreViewFirmwares, // The firmwares screen
+    FlipStoreViewAppList,          // The app list screen
+    FlipStoreViewFirmwares,        // The firmwares screen (submenu)
+    FlipStoreViewFirmwareDialog,   // The firmware view (DialogEx) of the selected firmware
+    FlipStoreViewFirmwareDownload, // The firmware download screen
     //
     FlipStoreViewAppInfo,     // The app info screen (widget) of the selected app
     FlipStoreViewAppDownload, // The app download screen (widget) of the selected app
@@ -89,7 +89,11 @@ typedef struct
     ViewDispatcher *view_dispatcher; // Switches between our views
     View *view_main;                 // The main screen for downloading apps
     View *view_app_info;             // The app info screen (view) of the selected app
-    Submenu *submenu_main;           // The submenu (main)
+    //
+    DialogEx *dialog_firmware;    // The dialog for installing a firmware
+    View *view_firmware_download; // The firmware download screen (view) of the selected firmware
+    //
+    Submenu *submenu_main; // The submenu (main)
     //
     Submenu *submenu_options;   // The submenu (options)
     Submenu *submenu_app_list;  // The submenu (app list) for the selected category
@@ -126,5 +130,7 @@ typedef struct
 } FlipStoreApp;
 
 void flip_store_app_free(FlipStoreApp *app);
+
+void flip_store_request_error(Canvas *canvas);
 
 #endif // FLIP_STORE_E_H

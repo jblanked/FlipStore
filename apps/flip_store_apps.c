@@ -9,6 +9,21 @@ bool flip_store_saved_data = false;
 bool flip_store_saved_success = false;
 uint32_t flip_store_category_index = 0;
 
+// define the list of categories
+char *categories[] = {
+    "Bluetooth",
+    "Games",
+    "GPIO",
+    "Infrared",
+    "iButton",
+    "Media",
+    "NFC",
+    "RFID",
+    "Sub-GHz",
+    "Tools",
+    "USB",
+};
+
 FlipStoreAppInfo *flip_catalog_alloc()
 {
     FlipStoreAppInfo *app_catalog = (FlipStoreAppInfo *)malloc(MAX_APP_COUNT * sizeof(FlipStoreAppInfo));
@@ -307,40 +322,6 @@ bool flip_store_get_fap_file(char *build_id, uint8_t target, uint16_t api_major,
     return sent_request;
 }
 
-void flip_store_request_error(Canvas *canvas)
-{
-    if (fhttp.last_response != NULL)
-    {
-        if (strstr(fhttp.last_response, "[ERROR] Not connected to Wifi. Failed to reconnect.") != NULL)
-        {
-            canvas_clear(canvas);
-            canvas_draw_str(canvas, 0, 10, "[ERROR] Not connected to Wifi.");
-            canvas_draw_str(canvas, 0, 50, "Update your WiFi settings.");
-            canvas_draw_str(canvas, 0, 60, "Press BACK to return.");
-        }
-        else if (strstr(fhttp.last_response, "[ERROR] Failed to connect to Wifi.") != NULL)
-        {
-            canvas_clear(canvas);
-            canvas_draw_str(canvas, 0, 10, "[ERROR] Not connected to Wifi.");
-            canvas_draw_str(canvas, 0, 50, "Update your WiFi settings.");
-            canvas_draw_str(canvas, 0, 60, "Press BACK to return.");
-        }
-        else
-        {
-            FURI_LOG_E(TAG, "Received an error: %s", fhttp.last_response);
-            canvas_draw_str(canvas, 0, 42, "Unusual error...");
-            canvas_draw_str(canvas, 0, 50, "Update your WiFi settings.");
-            canvas_draw_str(canvas, 0, 60, "Press BACK to return.");
-        }
-    }
-    else
-    {
-        canvas_clear(canvas);
-        canvas_draw_str(canvas, 0, 10, "[ERROR] Unknown error.");
-        canvas_draw_str(canvas, 0, 50, "Update your WiFi settings.");
-        canvas_draw_str(canvas, 0, 60, "Press BACK to return.");
-    }
-}
 // function to handle the entire installation process "asynchronously"
 bool flip_store_install_app(Canvas *canvas, char *category)
 {
