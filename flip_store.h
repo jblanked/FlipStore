@@ -17,6 +17,7 @@
 
 // define the list of categories
 extern char *categories[];
+extern char *firmwares[];
 
 // Define the submenu items for our FlipStore application
 typedef enum
@@ -24,7 +25,11 @@ typedef enum
     FlipStoreSubmenuIndexMain, // Click to start downloading the selected app
     FlipStoreSubmenuIndexAbout,
     FlipStoreSubmenuIndexSettings,
+    //
+    FlipStoreSubmenuIndexOptions, // Click to view the options
+    //
     FlipStoreSubmenuIndexAppList,
+    FlipStoreSubmenuIndexFirmwares,
     //
     FlipStoreSubmenuIndexAppListBluetooth,
     FlipStoreSubmenuIndexAppListGames,
@@ -38,14 +43,19 @@ typedef enum
     FlipStoreSubmenuIndexAppListTools,
     FlipStoreSubmenuIndexAppListUSB,
     //
-    FlipStoreSubmenuIndexStartAppList
+    FlipStoreSubmenuIndexStartFirmwares,
+    //
+    FlipStoreSubmenuIndexStartAppList = 100,
 } FlipStoreSubmenuIndex;
 
 // Define a single view for our FlipStore application
 typedef enum
 {
-    FlipStoreViewMain,          // The main screen
-    FlipStoreViewSubmenu,       // The submenu
+    FlipStoreViewMain, // The main screen
+    //
+    FlipStoreViewSubmenu,        // The submenu
+    FlipStoreViewSubmenuOptions, // The submenu options
+    //
     FlipStoreViewAbout,         // The about screen
     FlipStoreViewSettings,      // The settings screen
     FlipStoreViewTextInputSSID, // The text input screen for SSID
@@ -53,7 +63,9 @@ typedef enum
     //
     FlipStoreViewPopup, // The popup screen
     //
-    FlipStoreViewAppList,     // The app list screen
+    FlipStoreViewAppList,   // The app list screen
+    FlipStoreViewFirmwares, // The firmwares screen
+    //
     FlipStoreViewAppInfo,     // The app info screen (widget) of the selected app
     FlipStoreViewAppDownload, // The app download screen (widget) of the selected app
     FlipStoreViewAppDelete,   // The app delete screen (DialogEx) of the selected app
@@ -77,9 +89,11 @@ typedef struct
     ViewDispatcher *view_dispatcher; // Switches between our views
     View *view_main;                 // The main screen for downloading apps
     View *view_app_info;             // The app info screen (view) of the selected app
-    Submenu *submenu;                // The submenu (main)
+    Submenu *submenu_main;           // The submenu (main)
     //
-    Submenu *submenu_app_list; // The submenu (app list) for the selected category
+    Submenu *submenu_options;   // The submenu (options)
+    Submenu *submenu_app_list;  // The submenu (app list) for the selected category
+    Submenu *submenu_firmwares; // The submenu (firmwares)
     //
     Submenu *submenu_app_list_bluetooth; // The submenu (app list) for Bluetooth
     Submenu *submenu_app_list_games;     // The submenu (app list) for Games

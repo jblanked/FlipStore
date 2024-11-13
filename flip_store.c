@@ -15,6 +15,12 @@ char *categories[] = {
     "USB",
 };
 
+char *firmwares[] = {
+    "Black Magic",
+    "FlipperHTTP",
+    "Marauder",
+};
+
 // Function to free the resources used by FlipStoreApp
 void flip_store_app_free(FlipStoreApp *app)
 {
@@ -37,15 +43,25 @@ void flip_store_app_free(FlipStoreApp *app)
     }
 
     // Free Submenu(s)
-    if (app->submenu)
+    if (app->submenu_main)
     {
         view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewSubmenu);
-        submenu_free(app->submenu);
+        submenu_free(app->submenu_main);
+    }
+    if (app->submenu_options)
+    {
+        view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewSubmenuOptions);
+        submenu_free(app->submenu_options);
     }
     if (app->submenu_app_list)
     {
         view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewAppList);
         submenu_free(app->submenu_app_list);
+    }
+    if (app->submenu_firmwares)
+    {
+        view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewFirmwares);
+        submenu_free(app->submenu_firmwares);
     }
     if (app->submenu_app_list_bluetooth)
     {

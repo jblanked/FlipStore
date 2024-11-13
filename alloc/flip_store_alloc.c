@@ -105,11 +105,19 @@ FlipStoreApp *flip_store_app_alloc()
     app->variable_item_pass = variable_item_list_add(app->variable_item_list, "Password", 0, NULL, NULL);
 
     // Submenu
-    if (!easy_flipper_set_submenu(&app->submenu, FlipStoreViewSubmenu, "FlipStore v0.4", callback_exit_app, &app->view_dispatcher))
+    if (!easy_flipper_set_submenu(&app->submenu_main, FlipStoreViewSubmenu, "FlipStore v0.5", callback_exit_app, &app->view_dispatcher))
     {
         return NULL;
     }
-    if (!easy_flipper_set_submenu(&app->submenu_app_list, FlipStoreViewAppList, "App Catalog", callback_to_submenu, &app->view_dispatcher))
+    if (!easy_flipper_set_submenu(&app->submenu_options, FlipStoreViewSubmenuOptions, "Browse", callback_to_submenu, &app->view_dispatcher))
+    {
+        return NULL;
+    }
+    if (!easy_flipper_set_submenu(&app->submenu_app_list, FlipStoreViewAppList, "App Catalog", callback_to_submenu_options, &app->view_dispatcher))
+    {
+        return NULL;
+    }
+    if (!easy_flipper_set_submenu(&app->submenu_firmwares, FlipStoreViewFirmwares, "ESP32 Firmwares", callback_to_submenu_options, &app->view_dispatcher))
     {
         return NULL;
     }
@@ -157,9 +165,18 @@ FlipStoreApp *flip_store_app_alloc()
     {
         return NULL;
     }
-    submenu_add_item(app->submenu, "Catalog", FlipStoreSubmenuIndexAppList, callback_submenu_choices, app);
-    submenu_add_item(app->submenu, "About", FlipStoreSubmenuIndexAbout, callback_submenu_choices, app);
-    submenu_add_item(app->submenu, "Settings", FlipStoreSubmenuIndexSettings, callback_submenu_choices, app);
+    //
+    submenu_add_item(app->submenu_main, "Browse", FlipStoreSubmenuIndexOptions, callback_submenu_choices, app);
+    submenu_add_item(app->submenu_main, "About", FlipStoreSubmenuIndexAbout, callback_submenu_choices, app);
+    submenu_add_item(app->submenu_main, "Settings", FlipStoreSubmenuIndexSettings, callback_submenu_choices, app);
+    //
+    submenu_add_item(app->submenu_options, "App Catalog", FlipStoreSubmenuIndexAppList, callback_submenu_choices, app);
+    submenu_add_item(app->submenu_options, "ESP32 Firmwares", FlipStoreSubmenuIndexFirmwares, callback_submenu_choices, app);
+    //
+    for (int i = 0; i < 3; i++)
+    {
+        submenu_add_item(app->submenu_firmwares, firmwares[i], FlipStoreSubmenuIndexStartFirmwares + i, callback_submenu_choices, app);
+    }
     //
     submenu_add_item(app->submenu_app_list, "Bluetooth", FlipStoreSubmenuIndexAppListBluetooth, callback_submenu_choices, app);
     submenu_add_item(app->submenu_app_list, "Games", FlipStoreSubmenuIndexAppListGames, callback_submenu_choices, app);

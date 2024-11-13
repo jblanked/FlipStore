@@ -180,7 +180,6 @@ int32_t flipper_http_worker(void *context)
                     // Write to file if buffer is full
                     if (file_buffer_len >= FILE_BUFFER_SIZE)
                     {
-                        // remove [POST/END] and/or [GET/END] from the file
                         if (!flipper_http_append_to_file(
                                 file_buffer, file_buffer_len, false, fhttp.file_path))
                         {

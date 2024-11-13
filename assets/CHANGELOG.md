@@ -1,3 +1,6 @@
+## v0.5
+- Added app descriptions and versioning.
+
 ## v0.4
 - Added an option to delete apps
 - Edit by Willy-JL

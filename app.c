@@ -1,5 +1,6 @@
 #include <flip_store.h>
 #include <alloc/flip_store_alloc.h>
+#include <apps/flip_store_apps.h>
 
 // Entry point for the Hello World application
 int32_t main_flip_store(void *p)
@@ -26,6 +27,7 @@ int32_t main_flip_store(void *p)
 
     // Free the resources used by the Hello World application
     flip_store_app_free(app);
+    flip_catalog_free();
 
     // Return 0 to indicate success
     return 0;

@@ -7,8 +7,8 @@
 
 #define SETTINGS_PATH STORAGE_EXT_PATH_PREFIX "/apps_data/flip_store/settings.bin"
 #define BUFFER_SIZE 64
-#define MAX_KEY_LENGTH 32
-#define MAX_VALUE_LENGTH 64
+#define MAX_KEY_LENGTH 16
+#define MAX_VALUE_LENGTH 100
 
 void save_settings(
     const char *ssid,

@@ -9,12 +9,16 @@
 #define MAX_APP_NAME_LENGTH 32
 #define MAX_ID_LENGTH 32
 #define MAX_APP_COUNT 100
+#define MAX_APP_DESCRIPTION_LENGTH 100
+#define MAX_APP_VERSION_LENGTH 5
 
 typedef struct
 {
     char *app_name;
     char *app_id;
     char *app_build_id;
+    char *app_version;
+    char *app_description;
 } FlipStoreAppInfo;
 
 extern FlipStoreAppInfo *flip_catalog;
