@@ -76,6 +76,8 @@ typedef struct
     bool is_bytes_request;     // Flag to indicate if the request is for bytes
     bool save_bytes;           // Flag to save the received data to a file
     bool save_received_data;   // Flag to save the received data to a file
+
+    bool just_started_bytes; // Indicates if bytes data reception has just started
 } FlipperHTTP;
 
 extern FlipperHTTP fhttp;
