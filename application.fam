@@ -10,5 +10,5 @@ App(
     fap_description="Download apps via WiFi directly to your Flipper Zero",
     fap_author="JBlanked",
     fap_weburl="https://github.com/jblanked/FlipStore",
-    fap_version="0.6",
+    fap_version="0.6.1",
 )

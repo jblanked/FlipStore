@@ -54,9 +54,9 @@ Firmware *firmware_alloc()
 
     // FlipperHTTP
     fw[1].name = "FlipperHTTP";
-    fw[1].links[0] = "https://raw.githubusercontent.com/jblanked/FlipperHTTP/main/flipper_http_bootloader.bin";
-    fw[1].links[1] = "https://raw.githubusercontent.com/jblanked/FlipperHTTP/main/flipper_http_firmware_a.bin";
-    fw[1].links[2] = "https://raw.githubusercontent.com/jblanked/FlipperHTTP/main/flipper_http_partitions.bin";
+    fw[1].links[0] = "https://raw.githubusercontent.com/jblanked/FlipperHTTP/main/WiFi%20Developer%20Board%20(ESP32S2)/flipper_http_bootloader.bin";
+    fw[1].links[1] = "https://raw.githubusercontent.com/jblanked/FlipperHTTP/main/WiFi%20Developer%20Board%20(ESP32S2)/flipper_http_firmware_a.bin";
+    fw[1].links[2] = "https://raw.githubusercontent.com/jblanked/FlipperHTTP/main/WiFi%20Developer%20Board%20(ESP32S2)/flipper_http_partitions.bin";
 
     // Marauder
     fw[2].name = "Marauder";
