@@ -69,32 +69,9 @@ FlipStoreAppInfo *flip_catalog_alloc()
 }
 void flip_catalog_free()
 {
-    if (!flip_catalog)
+    if (flip_catalog)
     {
-        return;
-    }
-    for (int i = 0; i < MAX_APP_COUNT; i++)
-    {
-        if (flip_catalog[i].app_name)
-        {
-            free(flip_catalog[i].app_name);
-        }
-        if (flip_catalog[i].app_id)
-        {
-            free(flip_catalog[i].app_id);
-        }
-        if (flip_catalog[i].app_build_id)
-        {
-            free(flip_catalog[i].app_build_id);
-        }
-        if (flip_catalog[i].app_version)
-        {
-            free(flip_catalog[i].app_version);
-        }
-        if (flip_catalog[i].app_description)
-        {
-            free(flip_catalog[i].app_description);
-        }
+        free(flip_catalog);
     }
 }
 
@@ -322,8 +299,7 @@ bool flip_store_get_fap_file(char *build_id, uint8_t target, uint16_t api_major,
     return sent_request;
 }
 
-// function to handle the entire installation process "asynchronously"
-bool flip_store_install_app(Canvas *canvas, char *category)
+bool flip_store_install_app(char *category)
 {
     // create /apps/FlipStore directory if it doesn't exist
     char directory_path[128];
@@ -333,138 +309,20 @@ bool flip_store_install_app(Canvas *canvas, char *category)
     Storage *storage = furi_record_open(RECORD_STORAGE);
     storage_common_mkdir(storage, directory_path);
 
-    // Adjusted to access flip_catalog as an array of structures
-    char installation_text[64];
-    snprintf(installation_text, sizeof(installation_text), "Installing %s", flip_catalog[app_selected_index].app_name);
     snprintf(fhttp.file_path, sizeof(fhttp.file_path), STORAGE_EXT_PATH_PREFIX "/apps/%s/%s.fap", category, flip_catalog[app_selected_index].app_id);
-    canvas_draw_str(canvas, 0, 10, installation_text);
-    canvas_draw_str(canvas, 0, 20, "Sending request..");
+
     uint8_t target = furi_hal_version_get_hw_target();
     uint16_t api_major, api_minor;
     furi_hal_info_get_api_version(&api_major, &api_minor);
     if (fhttp.state != INACTIVE && flip_store_get_fap_file(flip_catalog[app_selected_index].app_build_id, target, api_major, api_minor))
     {
-        canvas_draw_str(canvas, 0, 30, "Request sent.");
         fhttp.state = RECEIVING;
-        canvas_draw_str(canvas, 0, 40, "Receiving...");
+        return true;
     }
     else
     {
         FURI_LOG_E(TAG, "Failed to send the request");
         flip_store_success = false;
         return false;
-    }
-    while (fhttp.state == RECEIVING && furi_timer_is_running(fhttp.get_timeout_timer) > 0)
-    {
-        // Wait for the feed to be received
-        furi_delay_ms(10);
-    }
-    // furi_timer_stop(fhttp.get_timeout_timer);
-    if (fhttp.state == ISSUE)
-    {
-        flip_store_request_error(canvas);
-        flip_store_success = false;
-        return false;
-    }
-    flip_store_success = true;
-    return true;
-}
-
-// process the app list and return view
-int32_t flip_store_handle_app_list(FlipStoreApp *app, int32_t success_view, char *category, Submenu **submenu)
-{
-    // reset the flip_catalog
-    flip_catalog_free();
-
-    if (!app)
-    {
-        FURI_LOG_E(TAG, "FlipStoreApp is NULL");
-        return FlipStoreViewPopup;
-    }
-    snprintf(
-        fhttp.file_path,
-        sizeof(fhttp.file_path),
-        STORAGE_EXT_PATH_PREFIX "/apps_data/flip_store/%s.json", category);
-
-    fhttp.save_received_data = true;
-    fhttp.is_bytes_request = false;
-    char url[128];
-    snprintf(url, sizeof(url), "https://www.flipsocial.net/api/flipper/apps/%s/max/", category);
-    // async call to the app list with timer
-    if (fhttp.state != INACTIVE && flipper_http_get_request_with_headers(url, "{\"Content-Type\":\"application/json\"}"))
-    {
-        furi_timer_start(fhttp.get_timeout_timer, TIMEOUT_DURATION_TICKS);
-        fhttp.state = RECEIVING;
-    }
-    else
-    {
-        FURI_LOG_E(TAG, "Failed to send the request");
-        fhttp.state = ISSUE;
-        return FlipStoreViewPopup;
-    }
-    while (fhttp.state == RECEIVING && furi_timer_is_running(fhttp.get_timeout_timer) > 0)
-    {
-        // Wait for the feed to be received
-        furi_delay_ms(10);
-    }
-    furi_timer_stop(fhttp.get_timeout_timer);
-    if (fhttp.state == ISSUE)
-    {
-        FURI_LOG_E(TAG, "Failed to receive data");
-        if (fhttp.last_response == NULL)
-        {
-            if (fhttp.last_response != NULL)
-            {
-                if (strstr(fhttp.last_response, "[ERROR] Not connected to Wifi. Failed to reconnect.") != NULL)
-                {
-                    popup_set_text(app->popup, "[ERROR] WiFi Disconnected.\n\n\nUpdate your WiFi settings.\nPress BACK to return.", 0, 10, AlignLeft, AlignTop);
-                }
-                else if (strstr(fhttp.last_response, "[ERROR] Failed to connect to Wifi.") != NULL)
-                {
-                    popup_set_text(app->popup, "[ERROR] WiFi Disconnected.\n\n\nUpdate your WiFi settings.\nPress BACK to return.", 0, 10, AlignLeft, AlignTop);
-                }
-                else
-                {
-                    popup_set_text(app->popup, fhttp.last_response, 0, 50, AlignLeft, AlignTop);
-                }
-            }
-            else
-            {
-                popup_set_text(app->popup, "[ERROR] Unknown Error.\n\n\nUpdate your WiFi settings.\nPress BACK to return.", 0, 10, AlignLeft, AlignTop);
-            }
-            return FlipStoreViewPopup;
-        }
-        else
-        {
-            popup_set_text(app->popup, "Failed to received data.", 0, 50, AlignLeft, AlignTop);
-            return FlipStoreViewPopup;
-        }
-    }
-    else
-    {
-        // process the app list
-        if (flip_store_process_app_list() && submenu && flip_catalog)
-        {
-            submenu_reset(*submenu);
-            // add each app name to submenu
-            for (int i = 0; i < MAX_APP_COUNT; i++)
-            {
-                if (strlen(flip_catalog[i].app_name) > 0)
-                {
-                    submenu_add_item(*submenu, flip_catalog[i].app_name, FlipStoreSubmenuIndexStartAppList + i, callback_submenu_choices, app);
-                }
-                else
-                {
-                    break;
-                }
-            }
-            return success_view;
-        }
-        else
-        {
-            FURI_LOG_E(TAG, "Failed to process the app list");
-            popup_set_text(app->popup, "Failed to process the app list", 0, 10, AlignLeft, AlignTop);
-            return FlipStoreViewPopup;
-        }
     }
 }

@@ -35,10 +35,10 @@ Download Flipper Zero apps directly to your Flipper Zero using WiFi. You no long
 - Download flash firmware (Marauder, Black Magic, FlipperHTTP)
 
 **v0.7**
-- Download custom apps from a GitHub URL
+- UX Improvements
 
 **v0.8**
-- App Icons
+- Download custom apps/assets from a GitHub URL
 
 **1.0**
 - Download Official Firmware/Firmware Updates

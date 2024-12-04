@@ -1,223 +1,209 @@
 #include <callback/flip_store_callback.h>
 
+// Below added by Derek Jamison
+// FURI_LOG_DEV will log only during app development. Be sure that Settings/System/Log Device is "LPUART"; so we dont use serial port.
+#ifdef DEVELOPMENT
+#define FURI_LOG_DEV(tag, format, ...) furi_log_print_format(FuriLogLevelInfo, tag, format, ##__VA_ARGS__)
+#define DEV_CRASH() furi_crash()
+#else
+#define FURI_LOG_DEV(tag, format, ...)
+#define DEV_CRASH()
+#endif
+
 bool flip_store_app_does_exist = false;
 uint32_t selected_firmware_index = 0;
 
-// Callback for drawing the main screen
-void flip_store_view_draw_callback_main(Canvas *canvas, void *model)
+static bool flip_store_dl_app_fetch(DataLoaderModel *model)
 {
     UNUSED(model);
-    canvas_set_font(canvas, FontSecondary);
-
-    if (fhttp.state == INACTIVE)
+    return flip_store_install_app(categories[flip_store_category_index]);
+}
+static char *flip_store_dl_app_parse(DataLoaderModel *model)
+{
+    UNUSED(model);
+    if (fhttp.state != IDLE)
     {
-        canvas_draw_str(canvas, 0, 7, "Wifi Dev Board disconnected.");
-        canvas_draw_str(canvas, 0, 17, "Please connect to the board.");
-        canvas_draw_str(canvas, 0, 32, "If your board is connected,");
-        canvas_draw_str(canvas, 0, 42, "make sure you have flashed");
-        canvas_draw_str(canvas, 0, 52, "your WiFi Devboard with the");
-        canvas_draw_str(canvas, 0, 62, "latest FlipperHTTP flash.");
-        return;
+        return NULL;
+    }
+    return "App installed successfully.";
+}
+static void flip_store_dl_app_switch_to_view(FlipStoreApp *app)
+{
+    flip_store_generic_switch_to_view(app, flip_catalog[app_selected_index].app_name, flip_store_dl_app_fetch, flip_store_dl_app_parse, 1, callback_to_app_list, FlipStoreViewLoader);
+}
+//
+static bool flip_store_fetch_app_list(DataLoaderModel *model)
+{
+    UNUSED(model);
+    flip_catalog_free();
+    snprintf(
+        fhttp.file_path,
+        sizeof(fhttp.file_path),
+        STORAGE_EXT_PATH_PREFIX "/apps_data/flip_store/%s.json", categories[flip_store_category_index]);
+    fhttp.save_received_data = true;
+    fhttp.is_bytes_request = false;
+    char url[128];
+    snprintf(url, sizeof(url), "https://www.flipsocial.net/api/flipper/apps/%s/max/", categories[flip_store_category_index]);
+    return fhttp.state != INACTIVE && flipper_http_get_request_with_headers(url, "{\"Content-Type\":\"application/json\"}");
+}
+static char *flip_store_parse_app_list(DataLoaderModel *model)
+{
+    UNUSED(model);
+    if (!app_instance)
+    {
+        FURI_LOG_E(TAG, "FlipStoreApp is NULL");
+        return "Failed to fetch app list.";
+    }
+    Submenu **submenu = NULL;
+    uint32_t view_id = 0;
+    switch (flip_store_category_index)
+    {
+    case 0:
+        submenu = &app_instance->submenu_app_list_bluetooth;
+        view_id = FlipStoreViewAppListBluetooth;
+        break;
+    case 1:
+        submenu = &app_instance->submenu_app_list_games;
+        view_id = FlipStoreViewAppListGames;
+        break;
+    case 2:
+        submenu = &app_instance->submenu_app_list_gpio;
+        view_id = FlipStoreViewAppListGPIO;
+        break;
+    case 3:
+        submenu = &app_instance->submenu_app_list_infrared;
+        view_id = FlipStoreViewAppListInfrared;
+        break;
+    case 4:
+        submenu = &app_instance->submenu_app_list_ibutton;
+        view_id = FlipStoreViewAppListiButton;
+        break;
+    case 5:
+        submenu = &app_instance->submenu_app_list_media;
+        view_id = FlipStoreViewAppListMedia;
+        break;
+    case 6:
+        submenu = &app_instance->submenu_app_list_nfc;
+        view_id = FlipStoreViewAppListNFC;
+        break;
+    case 7:
+        submenu = &app_instance->submenu_app_list_rfid;
+        view_id = FlipStoreViewAppListRFID;
+        break;
+    case 8:
+        submenu = &app_instance->submenu_app_list_subghz;
+        view_id = FlipStoreViewAppListSubGHz;
+        break;
+    case 9:
+        submenu = &app_instance->submenu_app_list_tools;
+        view_id = FlipStoreViewAppListTools;
+        break;
+    case 10:
+        submenu = &app_instance->submenu_app_list_usb;
+        view_id = FlipStoreViewAppListUSB;
+        break;
+    }
+    if (!submenu)
+    {
+        FURI_LOG_E(TAG, "Submenu is NULL");
+        return "Failed to fetch app list.";
+    }
+    if (!easy_flipper_set_submenu(submenu, view_id, categories[flip_store_category_index], callback_to_app_list, &app_instance->view_dispatcher))
+    {
+        return NULL;
     }
 
-    if (!flip_store_sent_request)
+    if (flip_store_process_app_list() && submenu && flip_catalog)
     {
-        flip_store_sent_request = true;
-
-        if (!flip_store_install_app(canvas, categories[flip_store_category_index]))
+        submenu_reset(*submenu);
+        // add each app name to submenu
+        for (int i = 0; i < MAX_APP_COUNT; i++)
         {
-            canvas_clear(canvas);
-            canvas_draw_str(canvas, 0, 10, "Failed to install app.");
-            canvas_draw_str(canvas, 0, 60, "Press BACK to return.");
+            if (strlen(flip_catalog[i].app_name) > 0)
+            {
+                submenu_add_item(*submenu, flip_catalog[i].app_name, FlipStoreSubmenuIndexStartAppList + i, callback_submenu_choices, app_instance);
+            }
+            else
+            {
+                break;
+            }
         }
+        view_dispatcher_switch_to_view(app_instance->view_dispatcher, view_id);
+        return "Fetched app list successfully.";
     }
     else
     {
-        if (flip_store_success)
-        {
-            if (fhttp.state == RECEIVING)
-            {
-                canvas_clear(canvas);
-                canvas_draw_str(canvas, 0, 10, "Downloading app...");
-                canvas_draw_str(canvas, 0, 60, "Please wait...");
-                return;
-            }
-            else if (fhttp.state == IDLE)
-            {
-                canvas_clear(canvas);
-                canvas_draw_str(canvas, 0, 10, "App installed successfully.");
-                canvas_draw_str(canvas, 0, 60, "Press BACK to return.");
-            }
-        }
-        else
-        {
-            canvas_clear(canvas);
-            canvas_draw_str(canvas, 0, 10, "Failed to install app.");
-            canvas_draw_str(canvas, 0, 60, "Press BACK to return.");
-        }
+        FURI_LOG_E(TAG, "Failed to process the app list");
+        return "Failed to fetch app list.";
     }
 }
-
-// Function to draw the firmware download screen
-void flip_store_view_draw_callback_firmware(Canvas *canvas, void *model)
+static void flip_store_switch_to_app_list(FlipStoreApp *app)
 {
-    UNUSED(model);
-
-    // Check if the HTTP state is inactive
-    if (fhttp.state == INACTIVE)
+    flip_store_generic_switch_to_view(app, categories[flip_store_category_index], flip_store_fetch_app_list, flip_store_parse_app_list, 1, callback_to_submenu, FlipStoreViewLoader);
+}
+//
+static bool flip_store_fetch_firmware(DataLoaderModel *model)
+{
+    if (model->request_index == 0)
     {
-        canvas_set_font(canvas, FontSecondary);
-        canvas_draw_str(canvas, 0, 7, "Wifi Dev Board disconnected.");
-        canvas_draw_str(canvas, 0, 17, "Please connect to the board.");
-        canvas_draw_str(canvas, 0, 32, "If your board is connected,");
-        canvas_draw_str(canvas, 0, 42, "make sure you have flashed");
-        canvas_draw_str(canvas, 0, 52, "your WiFi Devboard with the");
-        canvas_draw_str(canvas, 0, 62, "latest FlipperHTTP flash.");
-        return;
-    }
-
-    // Set font and clear the canvas for the loading state
-    canvas_set_font(canvas, FontSecondary);
-    canvas_clear(canvas);
-    canvas_draw_str(canvas, 0, 10, "Loading...");
-
-    // Handle first firmware file
-    if (!sent_firmware_request)
-    {
-        sent_firmware_request = true;
+        firmware_free();
+        firmwares = firmware_alloc();
+        if (!firmwares)
+        {
+            return false;
+        }
         firmware_request_success = flip_store_get_firmware_file(
             firmwares[selected_firmware_index].links[0],
             firmwares[selected_firmware_index].name,
             strrchr(firmwares[selected_firmware_index].links[0], '/') + 1);
-
-        if (!firmware_request_success)
-        {
-            canvas_set_font(canvas, FontSecondary);
-            canvas_clear(canvas);
-            flip_store_request_error(canvas);
-        }
-        return;
+        return firmware_request_success;
     }
-    else if (sent_firmware_request && !firmware_download_success)
+    else if (model->request_index == 1)
     {
-        if (!firmware_request_success || fhttp.state == ISSUE)
-        {
-            canvas_set_font(canvas, FontSecondary);
-            canvas_clear(canvas);
-            flip_store_request_error(canvas);
-        }
-        else if (fhttp.state == RECEIVING)
-        {
-            canvas_set_font(canvas, FontSecondary);
-            canvas_clear(canvas);
-            canvas_draw_str(canvas, 0, 10, "Downloading file 1...");
-            canvas_draw_str(canvas, 0, 60, "Please wait...");
-        }
-        else if (fhttp.state == IDLE)
-        {
-            canvas_set_font(canvas, FontSecondary);
-            canvas_clear(canvas);
-            canvas_draw_str(canvas, 0, 10, "Success");
-            canvas_draw_str(canvas, 0, 60, "Downloading the next file now.");
-            firmware_download_success = true;
-        }
-        return;
-    }
-
-    // Handle second firmware file
-    if (firmware_download_success && !sent_firmware_request_2)
-    {
-        sent_firmware_request_2 = true;
         firmware_request_success_2 = flip_store_get_firmware_file(
             firmwares[selected_firmware_index].links[1],
             firmwares[selected_firmware_index].name,
             strrchr(firmwares[selected_firmware_index].links[1], '/') + 1);
-
-        if (!firmware_request_success_2)
-        {
-            canvas_set_font(canvas, FontSecondary);
-            canvas_clear(canvas);
-            flip_store_request_error(canvas);
-        }
-        return;
+        return firmware_request_success_2;
     }
-    else if (sent_firmware_request_2 && !firmware_download_success_2)
+    else if (model->request_index == 2)
     {
-        if (!firmware_request_success_2 || fhttp.state == ISSUE)
-        {
-            canvas_set_font(canvas, FontSecondary);
-            canvas_clear(canvas);
-            flip_store_request_error(canvas);
-        }
-        else if (fhttp.state == RECEIVING)
-        {
-            canvas_set_font(canvas, FontSecondary);
-            canvas_clear(canvas);
-            canvas_draw_str(canvas, 0, 10, "Downloading file 2...");
-            canvas_draw_str(canvas, 0, 60, "Please wait...");
-        }
-        else if (fhttp.state == IDLE)
-        {
-            canvas_set_font(canvas, FontSecondary);
-            canvas_clear(canvas);
-            canvas_draw_str(canvas, 0, 10, "Success");
-            canvas_draw_str(canvas, 0, 60, "Downloading the next file now.");
-            firmware_download_success_2 = true;
-        }
-        return;
-    }
-
-    // Handle third firmware file
-    if (firmware_download_success && firmware_download_success_2 && !sent_firmware_request_3)
-    {
-        sent_firmware_request_3 = true;
         firmware_request_success_3 = flip_store_get_firmware_file(
             firmwares[selected_firmware_index].links[2],
             firmwares[selected_firmware_index].name,
             strrchr(firmwares[selected_firmware_index].links[2], '/') + 1);
-
-        if (!firmware_request_success_3)
-        {
-            canvas_set_font(canvas, FontSecondary);
-            canvas_clear(canvas);
-            flip_store_request_error(canvas);
-        }
-        return;
+        return firmware_request_success_3;
     }
-    else if (sent_firmware_request_3 && !firmware_download_success_3)
+    return false;
+}
+static char *flip_store_parse_firmware(DataLoaderModel *model)
+{
+    if (model->request_index == 0)
     {
-        if (!firmware_request_success_3 || fhttp.state == ISSUE)
+        if (firmware_request_success)
         {
-            canvas_set_font(canvas, FontSecondary);
-            canvas_clear(canvas);
-            flip_store_request_error(canvas);
+            return "File 1 installed.";
         }
-        else if (fhttp.state == RECEIVING)
-        {
-            canvas_set_font(canvas, FontSecondary);
-            canvas_clear(canvas);
-            canvas_draw_str(canvas, 0, 10, "Downloading file 3...");
-            canvas_draw_str(canvas, 0, 60, "Please wait...");
-        }
-        else if (fhttp.state == IDLE)
-        {
-            canvas_set_font(canvas, FontSecondary);
-            canvas_clear(canvas);
-            canvas_draw_str(canvas, 0, 10, "Success");
-            canvas_draw_str(canvas, 0, 60, "Press BACK to return.");
-            firmware_download_success_3 = true;
-        }
-        return;
     }
-
-    // All files downloaded successfully
-    if (firmware_download_success && firmware_download_success_2 && firmware_download_success_3)
+    else if (model->request_index == 1)
     {
-        canvas_set_font(canvas, FontSecondary);
-        canvas_clear(canvas);
-        canvas_draw_str(canvas, 0, 10, "Files downloaded successfully.");
-        canvas_draw_str(canvas, 0, 60, "Press BACK to return.");
+        if (firmware_request_success_2)
+        {
+            return "File 2 installed.";
+        }
     }
+    else if (model->request_index == 2)
+    {
+        if (firmware_request_success_3)
+        {
+            return "Firmware downloaded successfully";
+        }
+    }
+    return NULL;
+}
+static void flip_store_switch_to_firmware_list(FlipStoreApp *app)
+{
+    flip_store_generic_switch_to_view(app, firmwares[selected_firmware_index].name, flip_store_fetch_firmware, flip_store_parse_firmware, FIRMWARE_LINKS, callback_to_submenu, FlipStoreViewLoader);
 }
 
 // Function to draw the message on the canvas with word wrapping
@@ -326,7 +312,7 @@ bool flip_store_input_callback(InputEvent *event, void *context)
         if (event->key == InputKeyRight)
         {
             // Right button clicked, download the app
-            view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewMain);
+            flip_store_dl_app_switch_to_view(app);
             return true;
         }
     }
@@ -547,7 +533,7 @@ void dialog_firmware_callback(DialogExResult result, void *context)
     else if (result == DialogExResultRight)
     {
         // download the firmware then return to the firmware list
-        view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewFirmwareDownload);
+        flip_store_switch_to_firmware_list(app);
     }
 }
 
@@ -584,9 +570,6 @@ void callback_submenu_choices(void *context, uint32_t index)
     }
     switch (index)
     {
-    case FlipStoreSubmenuIndexMain:
-        view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewMain);
-        break;
     case FlipStoreSubmenuIndexAbout:
         view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewAbout);
         break;
@@ -624,57 +607,57 @@ void callback_submenu_choices(void *context, uint32_t index)
     case FlipStoreSubmenuIndexAppListBluetooth:
         flip_store_category_index = 0;
         flip_store_app_does_exist = false;
-        view_dispatcher_switch_to_view(app->view_dispatcher, flip_store_handle_app_list(app, FlipStoreViewAppListBluetooth, "Bluetooth", &app->submenu_app_list_bluetooth));
+        flip_store_switch_to_app_list(app);
         break;
     case FlipStoreSubmenuIndexAppListGames:
         flip_store_category_index = 1;
         flip_store_app_does_exist = false;
-        view_dispatcher_switch_to_view(app->view_dispatcher, flip_store_handle_app_list(app, FlipStoreViewAppListGames, "Games", &app->submenu_app_list_games));
+        flip_store_switch_to_app_list(app);
         break;
     case FlipStoreSubmenuIndexAppListGPIO:
         flip_store_category_index = 2;
         flip_store_app_does_exist = false;
-        view_dispatcher_switch_to_view(app->view_dispatcher, flip_store_handle_app_list(app, FlipStoreViewAppListGPIO, "GPIO", &app->submenu_app_list_gpio));
+        flip_store_switch_to_app_list(app);
         break;
     case FlipStoreSubmenuIndexAppListInfrared:
         flip_store_category_index = 3;
         flip_store_app_does_exist = false;
-        view_dispatcher_switch_to_view(app->view_dispatcher, flip_store_handle_app_list(app, FlipStoreViewAppListInfrared, "Infrared", &app->submenu_app_list_infrared));
+        flip_store_switch_to_app_list(app);
         break;
     case FlipStoreSubmenuIndexAppListiButton:
         flip_store_category_index = 4;
         flip_store_app_does_exist = false;
-        view_dispatcher_switch_to_view(app->view_dispatcher, flip_store_handle_app_list(app, FlipStoreViewAppListiButton, "iButton", &app->submenu_app_list_ibutton));
+        flip_store_switch_to_app_list(app);
         break;
     case FlipStoreSubmenuIndexAppListMedia:
         flip_store_category_index = 5;
         flip_store_app_does_exist = false;
-        view_dispatcher_switch_to_view(app->view_dispatcher, flip_store_handle_app_list(app, FlipStoreViewAppListMedia, "Media", &app->submenu_app_list_media));
+        flip_store_switch_to_app_list(app);
         break;
     case FlipStoreSubmenuIndexAppListNFC:
         flip_store_category_index = 6;
         flip_store_app_does_exist = false;
-        view_dispatcher_switch_to_view(app->view_dispatcher, flip_store_handle_app_list(app, FlipStoreViewAppListNFC, "NFC", &app->submenu_app_list_nfc));
+        flip_store_switch_to_app_list(app);
         break;
     case FlipStoreSubmenuIndexAppListRFID:
         flip_store_category_index = 7;
         flip_store_app_does_exist = false;
-        view_dispatcher_switch_to_view(app->view_dispatcher, flip_store_handle_app_list(app, FlipStoreViewAppListRFID, "RFID", &app->submenu_app_list_rfid));
+        flip_store_switch_to_app_list(app);
         break;
     case FlipStoreSubmenuIndexAppListSubGHz:
         flip_store_category_index = 8;
         flip_store_app_does_exist = false;
-        view_dispatcher_switch_to_view(app->view_dispatcher, flip_store_handle_app_list(app, FlipStoreViewAppListSubGHz, "Sub-GHz", &app->submenu_app_list_subghz));
+        flip_store_switch_to_app_list(app);
         break;
     case FlipStoreSubmenuIndexAppListTools:
         flip_store_category_index = 9;
         flip_store_app_does_exist = false;
-        view_dispatcher_switch_to_view(app->view_dispatcher, flip_store_handle_app_list(app, FlipStoreViewAppListTools, "Tools", &app->submenu_app_list_tools));
+        flip_store_switch_to_app_list(app);
         break;
     case FlipStoreSubmenuIndexAppListUSB:
         flip_store_category_index = 10;
         flip_store_app_does_exist = false;
-        view_dispatcher_switch_to_view(app->view_dispatcher, flip_store_handle_app_list(app, FlipStoreViewAppListUSB, "USB", &app->submenu_app_list_usb));
+        flip_store_switch_to_app_list(app);
         break;
     default:
         // Check if the index is within the firmwares list range
@@ -736,4 +719,463 @@ void callback_submenu_choices(void *context, uint32_t index)
         }
         break;
     }
+}
+
+static void flip_store_widget_set_text(char *message, Widget **widget)
+{
+    if (widget == NULL)
+    {
+        FURI_LOG_E(TAG, "flip_store_set_widget_text - widget is NULL");
+        DEV_CRASH();
+        return;
+    }
+    if (message == NULL)
+    {
+        FURI_LOG_E(TAG, "flip_store_set_widget_text - message is NULL");
+        DEV_CRASH();
+        return;
+    }
+    widget_reset(*widget);
+
+    uint32_t message_length = strlen(message); // Length of the message
+    uint32_t i = 0;                            // Index tracker
+    uint32_t formatted_index = 0;              // Tracker for where we are in the formatted message
+    char *formatted_message;                   // Buffer to hold the final formatted message
+
+    // Allocate buffer with double the message length plus one for safety
+    if (!easy_flipper_set_buffer(&formatted_message, message_length * 2 + 1))
+    {
+        return;
+    }
+
+    while (i < message_length)
+    {
+        uint32_t max_line_length = 31;                  // Maximum characters per line
+        uint32_t remaining_length = message_length - i; // Remaining characters
+        uint32_t line_length = (remaining_length < max_line_length) ? remaining_length : max_line_length;
+
+        // Check for newline character within the current segment
+        uint32_t newline_pos = i;
+        bool found_newline = false;
+        for (; newline_pos < i + line_length && newline_pos < message_length; newline_pos++)
+        {
+            if (message[newline_pos] == '\n')
+            {
+                found_newline = true;
+                break;
+            }
+        }
+
+        if (found_newline)
+        {
+            // If newline found, set line_length up to the newline
+            line_length = newline_pos - i;
+        }
+
+        // Temporary buffer to hold the current line
+        char line[32];
+        strncpy(line, message + i, line_length);
+        line[line_length] = '\0';
+
+        // If newline was found, skip it for the next iteration
+        if (found_newline)
+        {
+            i += line_length + 1; // +1 to skip the '\n' character
+        }
+        else
+        {
+            // Check if the line ends in the middle of a word and adjust accordingly
+            if (line_length == max_line_length && message[i + line_length] != '\0' && message[i + line_length] != ' ')
+            {
+                // Find the last space within the current line to avoid breaking a word
+                char *last_space = strrchr(line, ' ');
+                if (last_space != NULL)
+                {
+                    // Adjust the line_length to avoid cutting the word
+                    line_length = last_space - line;
+                    line[line_length] = '\0'; // Null-terminate at the space
+                }
+            }
+
+            // Move the index forward by the determined line_length
+            i += line_length;
+
+            // Skip any spaces at the beginning of the next line
+            while (i < message_length && message[i] == ' ')
+            {
+                i++;
+            }
+        }
+
+        // Manually copy the fixed line into the formatted_message buffer
+        for (uint32_t j = 0; j < line_length; j++)
+        {
+            formatted_message[formatted_index++] = line[j];
+        }
+
+        // Add a newline character for line spacing
+        formatted_message[formatted_index++] = '\n';
+    }
+
+    // Null-terminate the formatted_message
+    formatted_message[formatted_index] = '\0';
+
+    // Add the formatted message to the widget
+    widget_add_text_scroll_element(*widget, 0, 0, 128, 64, formatted_message);
+}
+
+void flip_store_loader_draw_callback(Canvas *canvas, void *model)
+{
+    if (!canvas || !model)
+    {
+        FURI_LOG_E(TAG, "flip_store_loader_draw_callback - canvas or model is NULL");
+        return;
+    }
+
+    SerialState http_state = fhttp.state;
+    DataLoaderModel *data_loader_model = (DataLoaderModel *)model;
+    DataState data_state = data_loader_model->data_state;
+    char *title = data_loader_model->title;
+
+    canvas_set_font(canvas, FontSecondary);
+
+    if (http_state == INACTIVE)
+    {
+        canvas_draw_str(canvas, 0, 7, "WiFi Dev Board disconnected.");
+        canvas_draw_str(canvas, 0, 17, "Please connect to the board.");
+        canvas_draw_str(canvas, 0, 32, "If your board is connected,");
+        canvas_draw_str(canvas, 0, 42, "make sure you have flashed");
+        canvas_draw_str(canvas, 0, 52, "your WiFi Devboard with the");
+        canvas_draw_str(canvas, 0, 62, "latest FlipperHTTP flash.");
+        return;
+    }
+
+    if (data_state == DataStateError || data_state == DataStateParseError)
+    {
+        flip_store_request_error(canvas);
+        return;
+    }
+
+    canvas_draw_str(canvas, 0, 7, title);
+    canvas_draw_str(canvas, 0, 17, "Loading...");
+
+    if (data_state == DataStateInitial)
+    {
+        return;
+    }
+
+    if (http_state == SENDING)
+    {
+        canvas_draw_str(canvas, 0, 27, "Fetching...");
+        return;
+    }
+
+    if (http_state == RECEIVING || data_state == DataStateRequested)
+    {
+        canvas_draw_str(canvas, 0, 27, "Receiving...");
+        return;
+    }
+
+    if (http_state == IDLE && data_state == DataStateReceived)
+    {
+        canvas_draw_str(canvas, 0, 27, "Processing...");
+        return;
+    }
+
+    if (http_state == IDLE && data_state == DataStateParsed)
+    {
+        canvas_draw_str(canvas, 0, 27, "Processed...");
+        return;
+    }
+}
+
+static void flip_store_loader_process_callback(void *context)
+{
+    if (context == NULL)
+    {
+        FURI_LOG_E(TAG, "flip_store_loader_process_callback - context is NULL");
+        DEV_CRASH();
+        return;
+    }
+
+    FlipStoreApp *app = (FlipStoreApp *)context;
+    View *view = app->view_loader;
+
+    DataState current_data_state;
+    with_view_model(view, DataLoaderModel * model, { current_data_state = model->data_state; }, false);
+
+    if (current_data_state == DataStateInitial)
+    {
+        with_view_model(
+            view,
+            DataLoaderModel * model,
+            {
+                model->data_state = DataStateRequested;
+                DataLoaderFetch fetch = model->fetcher;
+                if (fetch == NULL)
+                {
+                    FURI_LOG_E(TAG, "Model doesn't have Fetch function assigned.");
+                    model->data_state = DataStateError;
+                    return;
+                }
+
+                // Clear any previous responses
+                strncpy(fhttp.last_response, "", 1);
+                bool request_status = fetch(model);
+                if (!request_status)
+                {
+                    model->data_state = DataStateError;
+                }
+            },
+            true);
+    }
+    else if (current_data_state == DataStateRequested || current_data_state == DataStateError)
+    {
+        if (fhttp.state == IDLE && fhttp.last_response != NULL)
+        {
+            if (strstr(fhttp.last_response, "[PONG]") != NULL)
+            {
+                FURI_LOG_DEV(TAG, "PONG received.");
+            }
+            else if (strncmp(fhttp.last_response, "[SUCCESS]", 9) == 0)
+            {
+                FURI_LOG_DEV(TAG, "SUCCESS received. %s", fhttp.last_response ? fhttp.last_response : "NULL");
+            }
+            else if (strncmp(fhttp.last_response, "[ERROR]", 9) == 0)
+            {
+                FURI_LOG_DEV(TAG, "ERROR received. %s", fhttp.last_response ? fhttp.last_response : "NULL");
+            }
+            else if (strlen(fhttp.last_response) == 0)
+            {
+                // Still waiting on response
+            }
+            else
+            {
+                with_view_model(view, DataLoaderModel * model, { model->data_state = DataStateReceived; }, true);
+            }
+        }
+        else if (fhttp.state == SENDING || fhttp.state == RECEIVING)
+        {
+            // continue waiting
+        }
+        else if (fhttp.state == INACTIVE)
+        {
+            // inactive. try again
+        }
+        else if (fhttp.state == ISSUE)
+        {
+            with_view_model(view, DataLoaderModel * model, { model->data_state = DataStateError; }, true);
+        }
+        else
+        {
+            FURI_LOG_DEV(TAG, "Unexpected state: %d lastresp: %s", fhttp.state, fhttp.last_response ? fhttp.last_response : "NULL");
+            DEV_CRASH();
+        }
+    }
+    else if (current_data_state == DataStateReceived)
+    {
+        with_view_model(
+            view,
+            DataLoaderModel * model,
+            {
+                char *data_text;
+                if (model->parser == NULL)
+                {
+                    data_text = NULL;
+                    FURI_LOG_DEV(TAG, "Parser is NULL");
+                    DEV_CRASH();
+                }
+                else
+                {
+                    data_text = model->parser(model);
+                }
+                FURI_LOG_DEV(TAG, "Parsed data: %s\r\ntext: %s", fhttp.last_response ? fhttp.last_response : "NULL", data_text ? data_text : "NULL");
+                model->data_text = data_text;
+                if (data_text == NULL)
+                {
+                    model->data_state = DataStateParseError;
+                }
+                else
+                {
+                    model->data_state = DataStateParsed;
+                }
+            },
+            true);
+    }
+    else if (current_data_state == DataStateParsed)
+    {
+        with_view_model(
+            view,
+            DataLoaderModel * model,
+            {
+                if (++model->request_index < model->request_count)
+                {
+                    model->data_state = DataStateInitial;
+                }
+                else
+                {
+                    flip_store_widget_set_text(model->data_text != NULL ? model->data_text : "Empty result", &app->widget_result);
+                    if (model->data_text != NULL)
+                    {
+                        free(model->data_text);
+                        model->data_text = NULL;
+                    }
+                    view_set_previous_callback(widget_get_view(app->widget_result), model->back_callback);
+                    view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewWidgetResult);
+                }
+            },
+            true);
+    }
+}
+
+static void flip_store_loader_timer_callback(void *context)
+{
+    if (context == NULL)
+    {
+        FURI_LOG_E(TAG, "flip_store_loader_timer_callback - context is NULL");
+        DEV_CRASH();
+        return;
+    }
+    FlipStoreApp *app = (FlipStoreApp *)context;
+    view_dispatcher_send_custom_event(app->view_dispatcher, FlipStoreCustomEventProcess);
+}
+
+static void flip_store_loader_on_enter(void *context)
+{
+    if (context == NULL)
+    {
+        FURI_LOG_E(TAG, "flip_store_loader_on_enter - context is NULL");
+        DEV_CRASH();
+        return;
+    }
+    FlipStoreApp *app = (FlipStoreApp *)context;
+    View *view = app->view_loader;
+    with_view_model(
+        view,
+        DataLoaderModel * model,
+        {
+            view_set_previous_callback(view, model->back_callback);
+            if (model->timer == NULL)
+            {
+                model->timer = furi_timer_alloc(flip_store_loader_timer_callback, FuriTimerTypePeriodic, app);
+            }
+            furi_timer_start(model->timer, 250);
+        },
+        true);
+}
+
+static void flip_store_loader_on_exit(void *context)
+{
+    if (context == NULL)
+    {
+        FURI_LOG_E(TAG, "flip_store_loader_on_exit - context is NULL");
+        DEV_CRASH();
+        return;
+    }
+    FlipStoreApp *app = (FlipStoreApp *)context;
+    View *view = app->view_loader;
+    with_view_model(
+        view,
+        DataLoaderModel * model,
+        {
+            if (model->timer)
+            {
+                furi_timer_stop(model->timer);
+            }
+        },
+        false);
+}
+
+void flip_store_loader_init(View *view)
+{
+    if (view == NULL)
+    {
+        FURI_LOG_E(TAG, "flip_store_loader_init - view is NULL");
+        DEV_CRASH();
+        return;
+    }
+    view_allocate_model(view, ViewModelTypeLocking, sizeof(DataLoaderModel));
+    view_set_enter_callback(view, flip_store_loader_on_enter);
+    view_set_exit_callback(view, flip_store_loader_on_exit);
+}
+
+void flip_store_loader_free_model(View *view)
+{
+    if (view == NULL)
+    {
+        FURI_LOG_E(TAG, "flip_store_loader_free_model - view is NULL");
+        DEV_CRASH();
+        return;
+    }
+    with_view_model(
+        view,
+        DataLoaderModel * model,
+        {
+            if (model->timer)
+            {
+                furi_timer_free(model->timer);
+                model->timer = NULL;
+            }
+            if (model->parser_context)
+            {
+                free(model->parser_context);
+                model->parser_context = NULL;
+            }
+        },
+        false);
+}
+
+bool flip_store_custom_event_callback(void *context, uint32_t index)
+{
+    if (context == NULL)
+    {
+        FURI_LOG_E(TAG, "flip_store_custom_event_callback - context is NULL");
+        DEV_CRASH();
+        return false;
+    }
+
+    switch (index)
+    {
+    case FlipStoreCustomEventProcess:
+        flip_store_loader_process_callback(context);
+        return true;
+    default:
+        FURI_LOG_DEV(TAG, "flip_store_custom_event_callback. Unknown index: %ld", index);
+        return false;
+    }
+}
+
+void flip_store_generic_switch_to_view(FlipStoreApp *app, char *title, DataLoaderFetch fetcher, DataLoaderParser parser, size_t request_count, ViewNavigationCallback back, uint32_t view_id)
+{
+    if (app == NULL)
+    {
+        FURI_LOG_E(TAG, "flip_store_generic_switch_to_view - app is NULL");
+        DEV_CRASH();
+        return;
+    }
+
+    View *view = app->view_loader;
+    if (view == NULL)
+    {
+        FURI_LOG_E(TAG, "flip_store_generic_switch_to_view - view is NULL");
+        DEV_CRASH();
+        return;
+    }
+
+    with_view_model(
+        view,
+        DataLoaderModel * model,
+        {
+            model->title = title;
+            model->fetcher = fetcher;
+            model->parser = parser;
+            model->request_index = 0;
+            model->request_count = request_count;
+            model->back_callback = back;
+            model->data_state = DataStateInitial;
+            model->data_text = NULL;
+        },
+        true);
+
+    view_dispatcher_switch_to_view(app->view_dispatcher, view_id);
 }

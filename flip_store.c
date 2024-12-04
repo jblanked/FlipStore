@@ -1,5 +1,8 @@
 #include <flip_store.h>
 
+void flip_store_loader_free_model(View *view);
+FlipStoreApp *app_instance = NULL;
+
 // Function to free the resources used by FlipStoreApp
 void flip_store_app_free(FlipStoreApp *app)
 {
@@ -9,21 +12,25 @@ void flip_store_app_free(FlipStoreApp *app)
         return;
     }
 
-    // Free View(s)
-    if (app->view_main)
+    // Free Widget(s)
+    if (app->widget_result)
     {
-        view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewMain);
-        view_free(app->view_main);
+        view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewWidgetResult);
+        widget_free(app->widget_result);
     }
+
+    // Free View(s)
+    if (app->view_loader)
+    {
+        view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewLoader);
+        flip_store_loader_free_model(app->view_loader);
+        view_free(app->view_loader);
+    }
+
     if (app->view_app_info)
     {
         view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewAppInfo);
         view_free(app->view_app_info);
-    }
-    if (app->view_firmware_download)
-    {
-        view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewFirmwareDownload);
-        view_free(app->view_firmware_download);
     }
 
     // Free Submenu(s)

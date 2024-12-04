@@ -62,7 +62,7 @@ Firmware *firmware_alloc()
     fw[2].name = "Marauder";
     fw[2].links[0] = "https://raw.githubusercontent.com/FZEEFlasher/fzeeflasher.github.io/main/resources/STATIC/M/FLIPDEV/esp32_marauder.ino.bootloader.bin";
     fw[2].links[1] = "https://raw.githubusercontent.com/FZEEFlasher/fzeeflasher.github.io/main/resources/STATIC/M/FLIPDEV/esp32_marauder.ino.partitions.bin";
-    fw[2].links[2] = "https://raw.githubusercontent.com/FZEEFlasher/fzeeflasher.github.io/main/resources/CURRENT/esp32_marauder_v1_0_0_20240626_flipper.bin";
+    fw[2].links[2] = "https://raw.githubusercontent.com/FZEEFlasher/fzeeflasher.github.io/main/resources/CURRENT/esp32_marauder_v1_1_0_20241128_flipper.bin";
 
     // https://api.github.com/repos/FZEEFlasher/fzeeflasher.github.io/contents/resources/STATIC/BM/bootloader.bin
     // https://api.github.com/repos/FZEEFlasher/fzeeflasher.github.io/contents/resources/STATIC/BM/partition-table.bin

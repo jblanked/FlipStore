@@ -49,27 +49,25 @@ typedef enum
 // Define a single view for our FlipStore application
 typedef enum
 {
-    FlipStoreViewMain, // The main screen for downloading apps
     //
-    FlipStoreViewSubmenu,        // The submenu
-    FlipStoreViewSubmenuOptions, // The submenu options
-    //
-    FlipStoreViewAbout,         // The about screen
-    FlipStoreViewSettings,      // The settings screen
-    FlipStoreViewTextInputSSID, // The text input screen for SSID
-    FlipStoreViewTextInputPass, // The text input screen for password
-    //
-    FlipStoreViewPopup, // The popup screen
-    //
+    FlipStoreViewSubmenu,          // The submenu
+    FlipStoreViewSubmenuOptions,   // The submenu options
+                                   //
+    FlipStoreViewAbout,            // The about screen
+    FlipStoreViewSettings,         // The settings screen
+    FlipStoreViewTextInputSSID,    // The text input screen for SSID
+    FlipStoreViewTextInputPass,    // The text input screen for password
+                                   //
+    FlipStoreViewPopup,            // The popup screen
+                                   //
     FlipStoreViewAppList,          // The app list screen
     FlipStoreViewFirmwares,        // The firmwares screen (submenu)
     FlipStoreViewFirmwareDialog,   // The firmware view (DialogEx) of the selected firmware
-    FlipStoreViewFirmwareDownload, // The firmware download screen
-    //
-    FlipStoreViewAppInfo,     // The app info screen (widget) of the selected app
-    FlipStoreViewAppDownload, // The app download screen (widget) of the selected app
-    FlipStoreViewAppDelete,   // The app delete screen (DialogEx) of the selected app
-    //
+                                   //
+    FlipStoreViewAppInfo,          // The app info screen (widget) of the selected app
+    FlipStoreViewAppDownload,      // The app download screen (widget) of the selected app
+    FlipStoreViewAppDelete,        // The app delete screen (DialogEx) of the selected app
+                                   //
     FlipStoreViewAppListBluetooth, // the app list screen for Bluetooth
     FlipStoreViewAppListGames,     // the app list screen for Games
     FlipStoreViewAppListGPIO,      // the app list screen for GPIO
@@ -81,13 +79,19 @@ typedef enum
     FlipStoreViewAppListSubGHz,    // the app list screen for Sub-GHz
     FlipStoreViewAppListTools,     // the app list screen for Tools
     FlipStoreViewAppListUSB,       // the app list screen for USB
+                                   //
+                                   //
+    FlipStoreViewWidgetResult,     // The text box that displays the random fact
+    FlipStoreViewLoader,           // The loader screen retrieves data from the internet
 } FlipStoreView;
 
 // Each screen will have its own view
 typedef struct
 {
+    View *view_loader;
+    Widget *widget_result;
+    //
     ViewDispatcher *view_dispatcher; // Switches between our views
-    View *view_main;                 // The main screen for downloading apps
     View *view_app_info;             // The app info screen (view) of the selected app
     //
     DialogEx *dialog_firmware;    // The dialog for installing a firmware
@@ -132,5 +136,6 @@ typedef struct
 void flip_store_app_free(FlipStoreApp *app);
 
 void flip_store_request_error(Canvas *canvas);
+extern FlipStoreApp *app_instance;
 
 #endif // FLIP_STORE_E_H

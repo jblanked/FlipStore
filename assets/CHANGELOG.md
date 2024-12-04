@@ -1,3 +1,8 @@
+## v0.7
+- Improved memory allocation
+- Added updates from Derek Jamison
+- Updated Marauder to the latest version
+
 ## v0.6
 - Updated app layout
 - Added an option to download Developer Board firmware (Black Magic, FlipperHTTP, and Marauder)
