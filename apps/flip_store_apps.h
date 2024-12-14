@@ -17,11 +17,11 @@ extern char *categories[];
 
 typedef struct
 {
-    char *app_name;
-    char *app_id;
-    char *app_build_id;
-    char *app_version;
-    char *app_description;
+    char app_name[MAX_APP_NAME_LENGTH];
+    char app_id[MAX_APP_NAME_LENGTH];
+    char app_build_id[MAX_ID_LENGTH];
+    char app_version[MAX_APP_VERSION_LENGTH];
+    char app_description[MAX_APP_DESCRIPTION_LENGTH];
 } FlipStoreAppInfo;
 
 extern FlipStoreAppInfo *flip_catalog;

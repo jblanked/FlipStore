@@ -12,8 +12,6 @@ void flip_store_app_free(FlipStoreApp *app)
         return;
     }
 
-    flip_catalog_free();
-
     // Free Widget(s)
     if (app->widget_result)
     {
@@ -27,12 +25,6 @@ void flip_store_app_free(FlipStoreApp *app)
         view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewLoader);
         flip_store_loader_free_model(app->view_loader);
         view_free(app->view_loader);
-    }
-
-    if (app->view_app_info)
-    {
-        view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewAppInfo);
-        view_free(app->view_app_info);
     }
 
     // Free Submenu(s)
@@ -55,44 +47,6 @@ void flip_store_app_free(FlipStoreApp *app)
     {
         view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewFirmwares);
         submenu_free(app->submenu_firmwares);
-    }
-
-    // Free Variable Item List(s)
-    if (app->variable_item_list)
-    {
-        view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewSettings);
-        variable_item_list_free(app->variable_item_list);
-    }
-
-    // Free Text Input(s)
-    if (app->uart_text_input_ssid)
-    {
-        view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewTextInputSSID);
-        uart_text_input_free(app->uart_text_input_ssid);
-    }
-    if (app->uart_text_input_pass)
-    {
-        view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewTextInputPass);
-        uart_text_input_free(app->uart_text_input_pass);
-    }
-
-    // Free popup
-    if (app->popup)
-    {
-        view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewPopup);
-        popup_free(app->popup);
-    }
-
-    // Free dialog
-    if (app->dialog_delete)
-    {
-        view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewAppDelete);
-        dialog_ex_free(app->dialog_delete);
-    }
-    if (app->dialog_firmware)
-    {
-        view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewFirmwareDialog);
-        dialog_ex_free(app->dialog_firmware);
     }
 
     // free the view dispatcher

@@ -12,6 +12,7 @@
 
 bool flip_store_app_does_exist = false;
 uint32_t selected_firmware_index = 0;
+static uint32_t callback_to_app_category_list(void *context);
 
 static bool flip_store_dl_app_fetch(DataLoaderModel *model)
 {
@@ -31,7 +32,7 @@ static char *flip_store_dl_app_parse(DataLoaderModel *model)
 }
 static void flip_store_dl_app_switch_to_view(FlipStoreApp *app)
 {
-    flip_store_generic_switch_to_view(app, flip_catalog[app_selected_index].app_name, flip_store_dl_app_fetch, flip_store_dl_app_parse, 1, callback_to_app_list, FlipStoreViewLoader);
+    flip_store_generic_switch_to_view(app, flip_catalog[app_selected_index].app_name, flip_store_dl_app_fetch, flip_store_dl_app_parse, 1, callback_to_app_category_list, FlipStoreViewLoader);
 }
 //
 static bool flip_store_fetch_app_list(DataLoaderModel *model)
@@ -186,7 +187,7 @@ static char *flip_store_parse_firmware(DataLoaderModel *model)
 }
 static void flip_store_switch_to_firmware_list(FlipStoreApp *app)
 {
-    flip_store_generic_switch_to_view(app, firmwares[selected_firmware_index].name, flip_store_fetch_firmware, flip_store_parse_firmware, FIRMWARE_LINKS, callback_to_submenu, FlipStoreViewLoader);
+    flip_store_generic_switch_to_view(app, firmwares[selected_firmware_index].name, flip_store_fetch_firmware, flip_store_parse_firmware, FIRMWARE_LINKS, callback_to_firmware_list, FlipStoreViewLoader);
 }
 
 // Function to draw the message on the canvas with word wrapping
@@ -255,8 +256,8 @@ void flip_store_view_draw_callback_app_list(Canvas *canvas, void *model)
     UNUSED(model);
     canvas_clear(canvas);
     canvas_set_font(canvas, FontPrimary);
-    char title[30];
-    snprintf(title, 30, "%s (v.%s)", flip_catalog[app_selected_index].app_name, flip_catalog[app_selected_index].app_version);
+    char title[64];
+    snprintf(title, 64, "%s (v.%s)", flip_catalog[app_selected_index].app_name, flip_catalog[app_selected_index].app_version);
     canvas_draw_str(canvas, 0, 10, title);
     canvas_set_font(canvas, FontSecondary);
     draw_description(canvas, flip_catalog[app_selected_index].app_description, 0, 13);
@@ -304,7 +305,7 @@ bool flip_store_input_callback(InputEvent *event, void *context)
         if (event->key == InputKeyBack)
         {
             // Back button clicked, switch to the previous view.
-            view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewAppList);
+            view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewAppListCategory);
             return true;
         }
     }
@@ -322,27 +323,45 @@ void flip_store_text_updated_ssid(void *context)
     }
 
     // store the entered text
-    strncpy(app->uart_text_input_buffer_ssid, app->uart_text_input_temp_buffer_ssid, app->uart_text_input_buffer_size_ssid);
+    strncpy(app->uart_text_input_buffer, app->uart_text_input_temp_buffer, app->uart_text_input_buffer_size);
 
     // Ensure null-termination
-    app->uart_text_input_buffer_ssid[app->uart_text_input_buffer_size_ssid - 1] = '\0';
+    app->uart_text_input_buffer[app->uart_text_input_buffer_size - 1] = '\0';
+
+    // save the setting
+    save_char("WiFi-SSID", app->uart_text_input_buffer);
 
     // update the variable item text
     if (app->variable_item_ssid)
     {
-        variable_item_set_current_value_text(app->variable_item_ssid, app->uart_text_input_buffer_ssid);
-    }
+        variable_item_set_current_value_text(app->variable_item_ssid, app->uart_text_input_buffer);
 
-    // save the settings
-    save_settings(app->uart_text_input_buffer_ssid, app->uart_text_input_buffer_pass);
-
-    // if SSID and PASS are not empty, connect to the WiFi
-    if (strlen(app->uart_text_input_buffer_ssid) > 0 && strlen(app->uart_text_input_buffer_pass) > 0)
-    {
-        // save wifi settings
-        if (!flipper_http_save_wifi(app->uart_text_input_buffer_ssid, app->uart_text_input_buffer_pass))
+        // get value of password
+        char pass[64];
+        if (load_char("WiFi-Password", pass, sizeof(pass)))
         {
-            FURI_LOG_E(TAG, "Failed to save WiFi settings");
+            if (strlen(pass) > 0 && strlen(app->uart_text_input_buffer) > 0)
+            {
+                // save the settings
+                save_settings(app->uart_text_input_buffer, pass);
+
+                // initialize the http
+                if (flipper_http_init(flipper_http_rx_callback, app))
+                {
+                    // save the wifi if the device is connected
+                    if (!flipper_http_save_wifi(app->uart_text_input_buffer, pass))
+                    {
+                        easy_flipper_dialog("FlipperHTTP Error", "Ensure your WiFi Developer\nBoard or Pico W is connected\nand the latest FlipperHTTP\nfirmware is installed.");
+                    }
+
+                    // free the resources
+                    flipper_http_deinit();
+                }
+                else
+                {
+                    easy_flipper_dialog("FlipperHTTP Error", "The UART is likely busy.\nEnsure you have the correct\nflash for your board then\nrestart your Flipper Zero.");
+                }
+            }
         }
     }
 
@@ -359,27 +378,45 @@ void flip_store_text_updated_pass(void *context)
     }
 
     // store the entered text
-    strncpy(app->uart_text_input_buffer_pass, app->uart_text_input_temp_buffer_pass, app->uart_text_input_buffer_size_pass);
+    strncpy(app->uart_text_input_buffer, app->uart_text_input_temp_buffer, app->uart_text_input_buffer_size);
 
     // Ensure null-termination
-    app->uart_text_input_buffer_pass[app->uart_text_input_buffer_size_pass - 1] = '\0';
+    app->uart_text_input_buffer[app->uart_text_input_buffer_size - 1] = '\0';
+
+    // save the setting
+    save_char("WiFi-Password", app->uart_text_input_buffer);
 
     // update the variable item text
     if (app->variable_item_pass)
     {
-        variable_item_set_current_value_text(app->variable_item_pass, app->uart_text_input_buffer_pass);
+        // variable_item_set_current_value_text(app->variable_item_pass, app->uart_text_input_buffer);
     }
 
-    // save the settings
-    save_settings(app->uart_text_input_buffer_ssid, app->uart_text_input_buffer_pass);
-
-    // if SSID and PASS are not empty, connect to the WiFi
-    if (strlen(app->uart_text_input_buffer_ssid) > 0 && strlen(app->uart_text_input_buffer_pass) > 0)
+    // get value of ssid
+    char ssid[64];
+    if (load_char("WiFi-SSID", ssid, sizeof(ssid)))
     {
-        // save wifi settings
-        if (!flipper_http_save_wifi(app->uart_text_input_buffer_ssid, app->uart_text_input_buffer_pass))
+        if (strlen(ssid) > 0 && strlen(app->uart_text_input_buffer) > 0)
         {
-            FURI_LOG_E(TAG, "Failed to save WiFi settings");
+            // save the settings
+            save_settings(ssid, app->uart_text_input_buffer);
+
+            // initialize the http
+            if (flipper_http_init(flipper_http_rx_callback, app))
+            {
+                // save the wifi if the device is connected
+                if (!flipper_http_save_wifi(ssid, app->uart_text_input_buffer))
+                {
+                    easy_flipper_dialog("FlipperHTTP Error", "Ensure your WiFi Developer\nBoard or Pico W is connected\nand the latest FlipperHTTP\nfirmware is installed.");
+                }
+
+                // free the resources
+                flipper_http_deinit();
+            }
+            else
+            {
+                easy_flipper_dialog("FlipperHTTP Error", "The UART is likely busy.\nEnsure you have the correct\nflash for your board then\nrestart your Flipper Zero.");
+            }
         }
     }
 
@@ -389,11 +426,6 @@ void flip_store_text_updated_pass(void *context)
 
 uint32_t callback_to_submenu(void *context)
 {
-    if (!context)
-    {
-        FURI_LOG_E(TAG, "Context is NULL");
-        return VIEW_NONE;
-    }
     UNUSED(context);
     firmware_free();
     return FlipStoreViewSubmenu;
@@ -401,11 +433,6 @@ uint32_t callback_to_submenu(void *context)
 
 uint32_t callback_to_submenu_options(void *context)
 {
-    if (!context)
-    {
-        FURI_LOG_E(TAG, "Context is NULL");
-        return VIEW_NONE;
-    }
     UNUSED(context);
     firmware_free();
     return FlipStoreViewSubmenuOptions;
@@ -413,11 +440,6 @@ uint32_t callback_to_submenu_options(void *context)
 
 uint32_t callback_to_firmware_list(void *context)
 {
-    if (!context)
-    {
-        FURI_LOG_E(TAG, "Context is NULL");
-        return VIEW_NONE;
-    }
     UNUSED(context);
     sent_firmware_request = false;
     sent_firmware_request_2 = false;
@@ -432,14 +454,13 @@ uint32_t callback_to_firmware_list(void *context)
     firmware_download_success_3 = false;
     return FlipStoreViewFirmwares;
 }
-
+static uint32_t callback_to_app_category_list(void *context)
+{
+    UNUSED(context);
+    return FlipStoreViewAppListCategory;
+}
 uint32_t callback_to_app_list(void *context)
 {
-    if (!context)
-    {
-        FURI_LOG_E(TAG, "Context is NULL");
-        return VIEW_NONE;
-    }
     UNUSED(context);
     flip_store_sent_request = false;
     flip_store_success = false;
@@ -450,7 +471,13 @@ uint32_t callback_to_app_list(void *context)
     return FlipStoreViewAppList;
 }
 
-void settings_item_selected(void *context, uint32_t index)
+static uint32_t callback_to_wifi_settings(void *context)
+{
+    UNUSED(context);
+    return FlipStoreViewSettings;
+}
+
+void dialog_delete_callback(DialogExResult result, void *context)
 {
     FlipStoreApp *app = (FlipStoreApp *)context;
     if (!app)
@@ -458,24 +485,6 @@ void settings_item_selected(void *context, uint32_t index)
         FURI_LOG_E(TAG, "FlipStoreApp is NULL");
         return;
     }
-    switch (index)
-    {
-    case 0: // Input SSID
-        view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewTextInputSSID);
-        break;
-    case 1: // Input Password
-        view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewTextInputPass);
-        break;
-    default:
-        FURI_LOG_E(TAG, "Unknown configuration item index");
-        break;
-    }
-}
-
-void dialog_delete_callback(DialogExResult result, void *context)
-{
-    furi_assert(context);
-    FlipStoreApp *app = (FlipStoreApp *)context;
     if (result == DialogExResultLeft) // No
     {
         view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewAppList);
@@ -486,18 +495,14 @@ void dialog_delete_callback(DialogExResult result, void *context)
         if (!delete_app(flip_catalog[app_selected_index].app_id, categories[flip_store_category_index]))
         {
             // pop up a message
-            popup_set_header(app->popup, "[ERROR]", 0, 0, AlignLeft, AlignTop);
-            popup_set_text(app->popup, "Issue deleting app.", 0, 50, AlignLeft, AlignTop);
-            view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewPopup);
+            easy_flipper_dialog("Error", "Issue deleting app.");
             furi_delay_ms(2000); // delay for 2 seconds
             view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewAppList);
         }
         else
         {
             // pop up a message
-            popup_set_header(app->popup, "[SUCCESS]", 0, 0, AlignLeft, AlignTop);
-            popup_set_text(app->popup, "App deleted successfully.", 0, 50, AlignLeft, AlignTop);
-            view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewPopup);
+            easy_flipper_dialog("Success", "App deleted successfully.");
             furi_delay_ms(2000); // delay for 2 seconds
             view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewAppList);
         }
@@ -506,8 +511,12 @@ void dialog_delete_callback(DialogExResult result, void *context)
 
 void dialog_firmware_callback(DialogExResult result, void *context)
 {
-    furi_assert(context);
     FlipStoreApp *app = (FlipStoreApp *)context;
+    if (!app)
+    {
+        FURI_LOG_E(TAG, "FlipStoreApp is NULL");
+        return;
+    }
     if (result == DialogExResultLeft) // No
     {
         // switch to the firmware list
@@ -520,16 +529,6 @@ void dialog_firmware_callback(DialogExResult result, void *context)
     }
 }
 
-void popup_callback(void *context)
-{
-    FlipStoreApp *app = (FlipStoreApp *)context;
-    if (!app)
-    {
-        FURI_LOG_E(TAG, "FlipStoreApp is NULL");
-        return;
-    }
-    view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewSubmenu);
-}
 static bool alloc_about_view(FlipStoreApp *app)
 {
     if (!app)
@@ -537,10 +536,10 @@ static bool alloc_about_view(FlipStoreApp *app)
         FURI_LOG_E(TAG, "FlipStoreApp is NULL");
         return false;
     }
-    if (!app->widget)
+    if (!app->widget_about)
     {
         if (!easy_flipper_set_widget(
-                &app->widget,
+                &app->widget_about,
                 FlipStoreViewAbout,
                 "Welcome to the FlipStore!\n------\nDownload apps via WiFi and\nrun them on your Flipper!\n------\nwww.github.com/jblanked",
                 callback_to_submenu,
@@ -548,7 +547,7 @@ static bool alloc_about_view(FlipStoreApp *app)
         {
             return false;
         }
-        if (!app->widget)
+        if (!app->widget_about)
         {
             return false;
         }
@@ -563,29 +562,275 @@ static void free_about_view()
         FURI_LOG_E(TAG, "FlipStoreApp is NULL");
         return;
     }
-    if (app_instance->widget != NULL)
+    if (app_instance->widget_about != NULL)
     {
         view_dispatcher_remove_view(app_instance->view_dispatcher, FlipStoreViewAbout);
-        widget_free(app_instance->widget);
-        app_instance->widget = NULL;
+        widget_free(app_instance->widget_about);
+        app_instance->widget_about = NULL;
     }
 }
-static void free_all_views()
+static bool alloc_text_input_view(void *context, char *title)
+{
+    FlipStoreApp *app = (FlipStoreApp *)context;
+    if (!app)
+    {
+        FURI_LOG_E(TAG, "FlipStoreApp is NULL");
+        return false;
+    }
+    if (!title)
+    {
+        FURI_LOG_E(TAG, "Title is NULL");
+        return false;
+    }
+    app->uart_text_input_buffer_size = 64;
+    if (!app->uart_text_input_buffer)
+    {
+        if (!easy_flipper_set_buffer(&app->uart_text_input_buffer, app->uart_text_input_buffer_size))
+        {
+            return false;
+        }
+    }
+    if (!app->uart_text_input_temp_buffer)
+    {
+        if (!easy_flipper_set_buffer(&app->uart_text_input_temp_buffer, app->uart_text_input_buffer_size))
+        {
+            return false;
+        }
+    }
+    if (!app->uart_text_input)
+    {
+        if (!easy_flipper_set_uart_text_input(
+                &app->uart_text_input,
+                FlipStoreViewTextInput,
+                title,
+                app->uart_text_input_temp_buffer,
+                app->uart_text_input_buffer_size,
+                strcmp(title, "SSID") == 0 ? flip_store_text_updated_ssid : flip_store_text_updated_pass,
+                callback_to_wifi_settings,
+                &app->view_dispatcher,
+                app))
+        {
+            return false;
+        }
+        if (!app->uart_text_input)
+        {
+            return false;
+        }
+        char ssid[64];
+        char pass[64];
+        if (load_settings(ssid, sizeof(ssid), pass, sizeof(pass)))
+        {
+            if (strcmp(title, "SSID") == 0)
+            {
+                strncpy(app->uart_text_input_temp_buffer, ssid, app->uart_text_input_buffer_size);
+            }
+            else
+            {
+                strncpy(app->uart_text_input_temp_buffer, pass, app->uart_text_input_buffer_size);
+            }
+        }
+    }
+    return true;
+}
+static void free_text_input_view(void *context)
+{
+    FlipStoreApp *app = (FlipStoreApp *)context;
+    if (!app)
+    {
+        FURI_LOG_E(TAG, "FlipStoreApp is NULL");
+        return;
+    }
+    if (app->uart_text_input)
+    {
+        view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewTextInput);
+        uart_text_input_free(app->uart_text_input);
+        app->uart_text_input = NULL;
+    }
+    if (app->uart_text_input_buffer)
+    {
+        free(app->uart_text_input_buffer);
+        app->uart_text_input_buffer = NULL;
+    }
+    if (app->uart_text_input_temp_buffer)
+    {
+        free(app->uart_text_input_temp_buffer);
+        app->uart_text_input_temp_buffer = NULL;
+    }
+}
+static bool alloc_variable_item_list(void *context)
+{
+    FlipStoreApp *app = (FlipStoreApp *)context;
+    if (!app)
+    {
+        FURI_LOG_E(TAG, "FlipStoreApp is NULL");
+        return false;
+    }
+    if (!app->variable_item_list)
+    {
+        if (!easy_flipper_set_variable_item_list(&app->variable_item_list, FlipStoreViewSettings, settings_item_selected, callback_to_submenu, &app->view_dispatcher, app))
+            return false;
+
+        if (!app->variable_item_list)
+            return false;
+
+        if (!app->variable_item_ssid)
+        {
+            app->variable_item_ssid = variable_item_list_add(app->variable_item_list, "SSID", 0, NULL, NULL);
+            variable_item_set_current_value_text(app->variable_item_ssid, "");
+        }
+        if (!app->variable_item_pass)
+        {
+            app->variable_item_pass = variable_item_list_add(app->variable_item_list, "Password", 0, NULL, NULL);
+            variable_item_set_current_value_text(app->variable_item_pass, "");
+        }
+        char ssid[64];
+        char pass[64];
+        if (load_settings(ssid, sizeof(ssid), pass, sizeof(pass)))
+        {
+            variable_item_set_current_value_text(app->variable_item_ssid, ssid);
+            // variable_item_set_current_value_text(app->variable_item_pass, pass);
+            save_char("WiFi-SSID", ssid);
+            save_char("WiFi-Password", pass);
+        }
+    }
+    return true;
+}
+static void free_variable_item_list()
+{
+    if (!app_instance)
+    {
+        FURI_LOG_E(TAG, "FlipStoreApp is NULL");
+        return;
+    }
+    if (app_instance->variable_item_list)
+    {
+        view_dispatcher_remove_view(app_instance->view_dispatcher, FlipStoreViewSettings);
+        variable_item_list_free(app_instance->variable_item_list);
+        app_instance->variable_item_list = NULL;
+    }
+    if (app_instance->variable_item_ssid)
+    {
+        free(app_instance->variable_item_ssid);
+        app_instance->variable_item_ssid = NULL;
+    }
+    if (app_instance->variable_item_pass)
+    {
+        free(app_instance->variable_item_pass);
+        app_instance->variable_item_pass = NULL;
+    }
+}
+static bool alloc_dialog_firmware(void *context)
+{
+    FlipStoreApp *app = (FlipStoreApp *)context;
+    if (!app->dialog_firmware)
+    {
+        if (!easy_flipper_set_dialog_ex(
+                &app->dialog_firmware,
+                FlipStoreViewFirmwareDialog,
+                "Download Firmware",
+                0,
+                0,
+                "Are you sure you want to\ndownload this firmware?",
+                0,
+                10,
+                "No",
+                "Yes",
+                NULL,
+                dialog_firmware_callback,
+                callback_to_firmware_list,
+                &app->view_dispatcher,
+                app))
+        {
+            return false;
+        }
+        if (!app->dialog_firmware)
+        {
+            return false;
+        }
+        dialog_ex_set_header(app->dialog_firmware, firmwares[selected_firmware_index].name, 0, 0, AlignLeft, AlignTop);
+    }
+    return true;
+}
+static void free_dialog_firmware(void *context)
+{
+    FlipStoreApp *app = (FlipStoreApp *)context;
+    if (!app)
+    {
+        FURI_LOG_E(TAG, "FlipStoreApp is NULL");
+        return;
+    }
+    if (app->dialog_firmware)
+    {
+        view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewFirmwareDialog);
+        dialog_ex_free(app->dialog_firmware);
+        app->dialog_firmware = NULL;
+    }
+}
+static bool alloc_app_info_view(void *context)
+{
+    FlipStoreApp *app = (FlipStoreApp *)context;
+    if (!app)
+    {
+        FURI_LOG_E(TAG, "FlipStoreApp is NULL");
+        return false;
+    }
+    if (!app->view_app_info)
+    {
+        if (!easy_flipper_set_view(
+                &app->view_app_info,
+                FlipStoreViewAppInfo,
+                flip_store_view_draw_callback_app_list,
+                flip_store_input_callback,
+                callback_to_app_category_list,
+                &app->view_dispatcher,
+                app))
+        {
+            return false;
+        }
+        if (!app->view_app_info)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+static void free_app_info_view(void *context)
+{
+    FlipStoreApp *app = (FlipStoreApp *)context;
+    if (!app)
+    {
+        FURI_LOG_E(TAG, "FlipStoreApp is NULL");
+        return;
+    }
+    if (app->view_app_info)
+    {
+        view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewAppInfo);
+        view_free(app->view_app_info);
+        app->view_app_info = NULL;
+    }
+}
+static void free_all_views(bool should_free_variable_item_list)
 {
     free_about_view();
-    // clear app list views
+    flip_catalog_free();
+    if (should_free_variable_item_list)
+    {
+        free_variable_item_list();
+    }
     if (app_instance->submenu_app_list_category)
     {
         view_dispatcher_remove_view(app_instance->view_dispatcher, FlipStoreViewAppListCategory);
         submenu_free(app_instance->submenu_app_list_category);
         app_instance->submenu_app_list_category = NULL;
     }
+    free_text_input_view(app_instance);
+    free_dialog_firmware(app_instance);
+    free_app_info_view(app_instance);
 }
-
 uint32_t callback_exit_app(void *context)
 {
     UNUSED(context);
-    free_all_views();
+    free_all_views(true);
     return VIEW_NONE; // Return VIEW_NONE to exit the app
 }
 
@@ -601,7 +846,7 @@ void callback_submenu_choices(void *context, uint32_t index)
     switch (index)
     {
     case FlipStoreSubmenuIndexAbout:
-        free_all_views();
+        free_all_views(true);
         if (!alloc_about_view(app))
         {
             FURI_LOG_E(TAG, "Failed to set about view");
@@ -610,9 +855,16 @@ void callback_submenu_choices(void *context, uint32_t index)
         view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewAbout);
         break;
     case FlipStoreSubmenuIndexSettings:
+        free_all_views(true);
+        if (!alloc_variable_item_list(app))
+        {
+            FURI_LOG_E(TAG, "Failed to allocate variable item list");
+            return;
+        }
         view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewSettings);
         break;
     case FlipStoreSubmenuIndexOptions:
+        free_all_views(true);
         view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewSubmenuOptions);
         break;
     case FlipStoreSubmenuIndexAppList:
@@ -641,67 +893,67 @@ void callback_submenu_choices(void *context, uint32_t index)
         view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewFirmwares);
         break;
     case FlipStoreSubmenuIndexAppListBluetooth:
-        free_all_views();
+        free_all_views(true);
         flip_store_category_index = 0;
         flip_store_app_does_exist = false;
         flip_store_switch_to_app_list(app);
         break;
     case FlipStoreSubmenuIndexAppListGames:
-        free_all_views();
+        free_all_views(true);
         flip_store_category_index = 1;
         flip_store_app_does_exist = false;
         flip_store_switch_to_app_list(app);
         break;
     case FlipStoreSubmenuIndexAppListGPIO:
-        free_all_views();
+        free_all_views(true);
         flip_store_category_index = 2;
         flip_store_app_does_exist = false;
         flip_store_switch_to_app_list(app);
         break;
     case FlipStoreSubmenuIndexAppListInfrared:
-        free_all_views();
+        free_all_views(true);
         flip_store_category_index = 3;
         flip_store_app_does_exist = false;
         flip_store_switch_to_app_list(app);
         break;
     case FlipStoreSubmenuIndexAppListiButton:
-        free_all_views();
+        free_all_views(true);
         flip_store_category_index = 4;
         flip_store_app_does_exist = false;
         flip_store_switch_to_app_list(app);
         break;
     case FlipStoreSubmenuIndexAppListMedia:
-        free_all_views();
+        free_all_views(true);
         flip_store_category_index = 5;
         flip_store_app_does_exist = false;
         flip_store_switch_to_app_list(app);
         break;
     case FlipStoreSubmenuIndexAppListNFC:
-        free_all_views();
+        free_all_views(true);
         flip_store_category_index = 6;
         flip_store_app_does_exist = false;
         flip_store_switch_to_app_list(app);
         break;
     case FlipStoreSubmenuIndexAppListRFID:
-        free_all_views();
+        free_all_views(true);
         flip_store_category_index = 7;
         flip_store_app_does_exist = false;
         flip_store_switch_to_app_list(app);
         break;
     case FlipStoreSubmenuIndexAppListSubGHz:
-        free_all_views();
+        free_all_views(true);
         flip_store_category_index = 8;
         flip_store_app_does_exist = false;
         flip_store_switch_to_app_list(app);
         break;
     case FlipStoreSubmenuIndexAppListTools:
-        free_all_views();
+        free_all_views(true);
         flip_store_category_index = 9;
         flip_store_app_does_exist = false;
         flip_store_switch_to_app_list(app);
         break;
     case FlipStoreSubmenuIndexAppListUSB:
-        free_all_views();
+        free_all_views(true);
         flip_store_category_index = 10;
         flip_store_app_does_exist = false;
         flip_store_switch_to_app_list(app);
@@ -720,15 +972,18 @@ void callback_submenu_choices(void *context, uint32_t index)
                 selected_firmware_index = firmware_index;
 
                 // Switch to the firmware download view
-                dialog_ex_set_header(app->dialog_firmware, firmwares[firmware_index].name, 0, 0, AlignLeft, AlignTop);
+                free_all_views(true);
+                if (!alloc_dialog_firmware(app))
+                {
+                    FURI_LOG_E(TAG, "Failed to allocate dialog firmware");
+                    return;
+                }
                 view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewFirmwareDialog);
             }
             else
             {
                 FURI_LOG_E(TAG, "Invalid firmware index");
-                popup_set_header(app->popup, "[ERROR]", 0, 0, AlignLeft, AlignTop);
-                popup_set_text(app->popup, "Issue parsing firmwarex", 0, 50, AlignLeft, AlignTop);
-                view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewPopup);
+                easy_flipper_dialog("Error", "Issue parsing firmware.");
             }
         }
         // Check if the index is within the app list range
@@ -748,6 +1003,12 @@ void callback_submenu_choices(void *context, uint32_t index)
                 {
                     app_selected_index = app_index;
                     flip_store_app_does_exist = app_exists(flip_catalog[app_selected_index].app_id, categories[flip_store_category_index]);
+                    free_app_info_view(app);
+                    if (!alloc_app_info_view(app))
+                    {
+                        FURI_LOG_E(TAG, "Failed to allocate app info view");
+                        return;
+                    }
                     view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewAppInfo);
                 }
                 else
@@ -764,6 +1025,55 @@ void callback_submenu_choices(void *context, uint32_t index)
         {
             FURI_LOG_E(TAG, "Unknown submenu index");
         }
+        break;
+    }
+}
+
+void settings_item_selected(void *context, uint32_t index)
+{
+    FlipStoreApp *app = (FlipStoreApp *)context;
+    if (!app)
+    {
+        FURI_LOG_E(TAG, "FlipStoreApp is NULL");
+        return;
+    }
+    char ssid[64];
+    char pass[64];
+    switch (index)
+    {
+    case 0: // Input SSID
+        // Text Input
+        free_all_views(false);
+        if (!alloc_text_input_view(app, "SSID"))
+        {
+            FURI_LOG_E(TAG, "Failed to allocate text input view");
+            return;
+        }
+        // load SSID
+        if (load_settings(ssid, sizeof(ssid), pass, sizeof(pass)))
+        {
+            strncpy(app->uart_text_input_temp_buffer, ssid, app->uart_text_input_buffer_size - 1);
+            app->uart_text_input_temp_buffer[app->uart_text_input_buffer_size - 1] = '\0';
+        }
+        view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewTextInput);
+        break;
+    case 1: // Input Password
+        free_all_views(false);
+        if (!alloc_text_input_view(app, "Password"))
+        {
+            FURI_LOG_E(TAG, "Failed to allocate text input view");
+            return;
+        }
+        // load password
+        if (load_settings(ssid, sizeof(ssid), pass, sizeof(pass)))
+        {
+            strncpy(app->uart_text_input_temp_buffer, pass, app->uart_text_input_buffer_size - 1);
+            app->uart_text_input_temp_buffer[app->uart_text_input_buffer_size - 1] = '\0';
+        }
+        view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewTextInput);
+        break;
+    default:
+        FURI_LOG_E(TAG, "Unknown configuration item index");
         break;
     }
 }

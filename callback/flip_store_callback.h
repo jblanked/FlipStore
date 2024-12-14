@@ -39,8 +39,6 @@ void settings_item_selected(void *context, uint32_t index);
 void dialog_delete_callback(DialogExResult result, void *context);
 void dialog_firmware_callback(DialogExResult result, void *context);
 
-void popup_callback(void *context);
-
 uint32_t callback_exit_app(void *context);
 void callback_submenu_choices(void *context, uint32_t index);
 

@@ -1,3 +1,6 @@
+## v0.7.2
+- Final memory allocation improvements
+
 ## v0.7.1
 - Improved memory allocation
 - Fixed a crash when re-entering the same app list  

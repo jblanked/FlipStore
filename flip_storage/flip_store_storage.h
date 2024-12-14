@@ -27,4 +27,12 @@ bool app_exists(const char *app_id, const char *app_category);
 // Function to parse JSON incrementally from a file
 bool parse_json_incrementally(const char *file_path, const char *target_key, char *value_buffer, size_t value_buffer_size);
 
+bool save_char(
+    const char *path_name, const char *value);
+
+bool load_char(
+    const char *path_name,
+    char *value,
+    size_t value_size);
+
 #endif

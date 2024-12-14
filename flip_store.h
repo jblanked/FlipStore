@@ -13,7 +13,10 @@
 #include <dialogs/dialogs.h>
 #include <jsmn/jsmn.h>
 #include <flip_store_icons.h>
+
 #define TAG "FlipStore"
+#define VERSION_TAG "FlipStore v0.7.2"
+
 #define FIRMWARE_COUNT 3
 #define FIRMWARE_LINKS 3
 
@@ -55,10 +58,7 @@ typedef enum
                                   //
     FlipStoreViewAbout,           // The about screen
     FlipStoreViewSettings,        // The settings screen
-    FlipStoreViewTextInputSSID,   // The text input screen for SSID
-    FlipStoreViewTextInputPass,   // The text input screen for password
-                                  //
-    FlipStoreViewPopup,           // The popup screen
+    FlipStoreViewTextInput,       // The text input screen
                                   //
     FlipStoreViewAppList,         // The app list screen
     FlipStoreViewFirmwares,       // The firmwares screen (submenu)
@@ -84,8 +84,7 @@ typedef struct
     ViewDispatcher *view_dispatcher; // Switches between our views
     View *view_app_info;             // The app info screen (view) of the selected app
     //
-    DialogEx *dialog_firmware;    // The dialog for installing a firmware
-    View *view_firmware_download; // The firmware download screen (view) of the selected firmware
+    DialogEx *dialog_firmware; // The dialog for installing a firmware
     //
     Submenu *submenu_main; // The submenu (main)
     //
@@ -93,22 +92,15 @@ typedef struct
     Submenu *submenu_app_list;            // The submenu (app list) for the selected category
     Submenu *submenu_firmwares;           // The submenu (firmwares)
     Submenu *submenu_app_list_category;   // The submenu (app list) for each category
-    Widget *widget;                       // The widget
-    Popup *popup;                         // The popup
-    DialogEx *dialog_delete;              // The dialog for deleting an app
+    Widget *widget_about;                 // The widget
     VariableItemList *variable_item_list; // The variable item list (settngs)
     VariableItem *variable_item_ssid;     // The variable item
     VariableItem *variable_item_pass;     // The variable item
-    UART_TextInput *uart_text_input_ssid; // The text input
-    UART_TextInput *uart_text_input_pass; // The text input
-
-    char *uart_text_input_buffer_ssid;         // Buffer for the text input
-    char *uart_text_input_temp_buffer_ssid;    // Temporary buffer for the text input
-    uint32_t uart_text_input_buffer_size_ssid; // Size of the text input buffer
-
-    char *uart_text_input_buffer_pass;         // Buffer for the text input
-    char *uart_text_input_temp_buffer_pass;    // Temporary buffer for the text input
-    uint32_t uart_text_input_buffer_size_pass; // Size of the text input buffer
+    //
+    UART_TextInput *uart_text_input;      // The text input
+    char *uart_text_input_buffer;         // Buffer for the text input
+    char *uart_text_input_temp_buffer;    // Temporary buffer for the text input
+    uint32_t uart_text_input_buffer_size; // Size of the text input buffer
 } FlipStoreApp;
 
 void flip_store_app_free(FlipStoreApp *app);

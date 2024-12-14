@@ -26,47 +26,16 @@ char *categories[] = {
 
 FlipStoreAppInfo *flip_catalog_alloc()
 {
-    FlipStoreAppInfo *app_catalog = (FlipStoreAppInfo *)malloc(MAX_APP_COUNT * sizeof(FlipStoreAppInfo));
+    FlipStoreAppInfo *app_catalog = malloc(MAX_APP_COUNT * sizeof(FlipStoreAppInfo));
     if (!app_catalog)
     {
         FURI_LOG_E(TAG, "Failed to allocate memory for flip_catalog.");
         return NULL;
     }
-    for (int i = 0; i < MAX_APP_COUNT; i++)
-    {
-        app_catalog[i].app_name = (char *)malloc(MAX_APP_NAME_LENGTH * sizeof(char));
-        if (!app_catalog[i].app_name)
-        {
-            FURI_LOG_E(TAG, "Failed to allocate memory for app_name.");
-            return NULL;
-        }
-        app_catalog[i].app_id = (char *)malloc(MAX_APP_NAME_LENGTH * sizeof(char));
-        if (!app_catalog[i].app_id)
-        {
-            FURI_LOG_E(TAG, "Failed to allocate memory for app_id.");
-            return NULL;
-        }
-        app_catalog[i].app_build_id = (char *)malloc(MAX_ID_LENGTH * sizeof(char));
-        if (!app_catalog[i].app_build_id)
-        {
-            FURI_LOG_E(TAG, "Failed to allocate memory for app_build_id.");
-            return NULL;
-        }
-        app_catalog[i].app_version = (char *)malloc(MAX_APP_VERSION_LENGTH * sizeof(char));
-        if (!app_catalog[i].app_version)
-        {
-            FURI_LOG_E(TAG, "Failed to allocate memory for app_version.");
-            return NULL;
-        }
-        app_catalog[i].app_description = (char *)malloc(MAX_APP_DESCRIPTION_LENGTH * sizeof(char));
-        if (!app_catalog[i].app_description)
-        {
-            FURI_LOG_E(TAG, "Failed to allocate memory for app_description.");
-            return NULL;
-        }
-    }
+    // No need for a loop since all memory is allocated in one block
     return app_catalog;
 }
+
 void flip_catalog_free()
 {
     if (flip_catalog)
