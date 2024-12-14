@@ -19,7 +19,7 @@
 #define UART_CH (FuriHalSerialIdUsart)    // UART channel
 #define TIMEOUT_DURATION_TICKS (5 * 1000) // 5 seconds
 #define BAUDRATE (115200)                 // UART baudrate
-#define RX_BUF_SIZE 1024                  // UART RX buffer size
+#define RX_BUF_SIZE 2048                  // UART RX buffer size
 #define RX_LINE_BUFFER_SIZE 8192          // UART RX line buffer size (increase for large responses)
 #define MAX_FILE_SHOW 8192                // Maximum data from file to show
 #define FILE_BUFFER_SIZE 512              // File buffer size
@@ -82,13 +82,13 @@ typedef struct
     bool save_received_data;   // Flag to save the received data to a file
 
     bool just_started_bytes; // Indicates if bytes data reception has just started
+
+    char rx_line_buffer[RX_LINE_BUFFER_SIZE];
+    uint8_t file_buffer[FILE_BUFFER_SIZE];
+    size_t file_buffer_len;
 } FlipperHTTP;
 
 extern FlipperHTTP fhttp;
-// Global static array for the line buffer
-extern char rx_line_buffer[RX_LINE_BUFFER_SIZE];
-extern uint8_t file_buffer[FILE_BUFFER_SIZE];
-extern size_t file_buffer_len;
 
 // fhttp.last_response holds the last received data from the UART
 
@@ -357,8 +357,6 @@ bool flipper_http_delete_request_with_headers(
  */
 void flipper_http_rx_callback(const char *line, void *context);
 
-// Function to trim leading and trailing spaces and newlines from a constant string
-char *trim(const char *str);
 /**
  * @brief Process requests and parse JSON data asynchronously
  * @param http_request The function to send the request

@@ -8,6 +8,7 @@
 #include <gui/view.h>
 #include <gui/modules/submenu.h>
 #include <gui/view_dispatcher.h>
+#include <gui/elements.h>
 #include <gui/modules/menu.h>
 #include <gui/modules/submenu.h>
 #include <gui/modules/widget.h>
@@ -15,6 +16,8 @@
 #include <gui/modules/text_box.h>
 #include <gui/modules/variable_item_list.h>
 #include <gui/modules/dialog_ex.h>
+#include <notification/notification.h>
+#include <dialogs/dialogs.h>
 #include <gui/modules/popup.h>
 #include <gui/modules/loading.h>
 #include <text_input/uart_text_input.h>
@@ -23,6 +26,10 @@
 #include <jsmn/jsmn.h>
 
 #define EASY_TAG "EasyFlipper"
+
+void easy_flipper_dialog(
+    char *header,
+    char *text);
 
 /**
  * @brief Navigation callback for exiting the application

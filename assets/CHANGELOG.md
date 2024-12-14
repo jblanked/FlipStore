@@ -1,3 +1,7 @@
+## v0.7.1
+- Improved memory allocation
+- Fixed a crash when re-entering the same app list  
+
 ## v0.7
 - Improved memory allocation
 - Added updates from Derek Jamison

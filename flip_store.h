@@ -50,39 +50,29 @@ typedef enum
 typedef enum
 {
     //
-    FlipStoreViewSubmenu,          // The submenu
-    FlipStoreViewSubmenuOptions,   // The submenu options
-                                   //
-    FlipStoreViewAbout,            // The about screen
-    FlipStoreViewSettings,         // The settings screen
-    FlipStoreViewTextInputSSID,    // The text input screen for SSID
-    FlipStoreViewTextInputPass,    // The text input screen for password
-                                   //
-    FlipStoreViewPopup,            // The popup screen
-                                   //
-    FlipStoreViewAppList,          // The app list screen
-    FlipStoreViewFirmwares,        // The firmwares screen (submenu)
-    FlipStoreViewFirmwareDialog,   // The firmware view (DialogEx) of the selected firmware
-                                   //
-    FlipStoreViewAppInfo,          // The app info screen (widget) of the selected app
-    FlipStoreViewAppDownload,      // The app download screen (widget) of the selected app
-    FlipStoreViewAppDelete,        // The app delete screen (DialogEx) of the selected app
-                                   //
-    FlipStoreViewAppListBluetooth, // the app list screen for Bluetooth
-    FlipStoreViewAppListGames,     // the app list screen for Games
-    FlipStoreViewAppListGPIO,      // the app list screen for GPIO
-    FlipStoreViewAppListInfrared,  // the app list screen for Infrared
-    FlipStoreViewAppListiButton,   // the app list screen for iButton
-    FlipStoreViewAppListMedia,     // the app list screen for Media
-    FlipStoreViewAppListNFC,       // the app list screen for NFC
-    FlipStoreViewAppListRFID,      // the app list screen for RFID
-    FlipStoreViewAppListSubGHz,    // the app list screen for Sub-GHz
-    FlipStoreViewAppListTools,     // the app list screen for Tools
-    FlipStoreViewAppListUSB,       // the app list screen for USB
-                                   //
-                                   //
-    FlipStoreViewWidgetResult,     // The text box that displays the random fact
-    FlipStoreViewLoader,           // The loader screen retrieves data from the internet
+    FlipStoreViewSubmenu,         // The submenu
+    FlipStoreViewSubmenuOptions,  // The submenu options
+                                  //
+    FlipStoreViewAbout,           // The about screen
+    FlipStoreViewSettings,        // The settings screen
+    FlipStoreViewTextInputSSID,   // The text input screen for SSID
+    FlipStoreViewTextInputPass,   // The text input screen for password
+                                  //
+    FlipStoreViewPopup,           // The popup screen
+                                  //
+    FlipStoreViewAppList,         // The app list screen
+    FlipStoreViewFirmwares,       // The firmwares screen (submenu)
+    FlipStoreViewFirmwareDialog,  // The firmware view (DialogEx) of the selected firmware
+                                  //
+    FlipStoreViewAppInfo,         // The app info screen (widget) of the selected app
+    FlipStoreViewAppDownload,     // The app download screen (widget) of the selected app
+    FlipStoreViewAppDelete,       // The app delete screen (DialogEx) of the selected app
+                                  //
+    FlipStoreViewAppListCategory, // the app list screen for each category
+                                  //
+                                  //
+    FlipStoreViewWidgetResult,    // The text box that displays the random fact
+    FlipStoreViewLoader,          // The loader screen retrieves data from the internet
 } FlipStoreView;
 
 // Each screen will have its own view
@@ -99,22 +89,10 @@ typedef struct
     //
     Submenu *submenu_main; // The submenu (main)
     //
-    Submenu *submenu_options;   // The submenu (options)
-    Submenu *submenu_app_list;  // The submenu (app list) for the selected category
-    Submenu *submenu_firmwares; // The submenu (firmwares)
-    //
-    Submenu *submenu_app_list_bluetooth; // The submenu (app list) for Bluetooth
-    Submenu *submenu_app_list_games;     // The submenu (app list) for Games
-    Submenu *submenu_app_list_gpio;      // The submenu (app list) for GPIO
-    Submenu *submenu_app_list_infrared;  // The submenu (app list) for Infrared
-    Submenu *submenu_app_list_ibutton;   // The submenu (app list) for iButton
-    Submenu *submenu_app_list_media;     // The submenu (app list) for Media
-    Submenu *submenu_app_list_nfc;       // The submenu (app list) for NFC
-    Submenu *submenu_app_list_rfid;      // The submenu (app list) for RFID
-    Submenu *submenu_app_list_subghz;    // The submenu (app list) for Sub-GHz
-    Submenu *submenu_app_list_tools;     // The submenu (app list) for Tools
-    Submenu *submenu_app_list_usb;       // The submenu (app list) for USB
-    //
+    Submenu *submenu_options;             // The submenu (options)
+    Submenu *submenu_app_list;            // The submenu (app list) for the selected category
+    Submenu *submenu_firmwares;           // The submenu (firmwares)
+    Submenu *submenu_app_list_category;   // The submenu (app list) for each category
     Widget *widget;                       // The widget
     Popup *popup;                         // The popup
     DialogEx *dialog_delete;              // The dialog for deleting an app

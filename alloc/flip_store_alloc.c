@@ -6,12 +6,6 @@ FlipStoreApp *flip_store_app_alloc()
 
     Gui *gui = furi_record_open(RECORD_GUI);
 
-    if (!flipper_http_init(flipper_http_rx_callback, app))
-    {
-        FURI_LOG_E(TAG, "Failed to initialize flipper http");
-        return NULL;
-    }
-
     // Allocate the text input buffer
     app->uart_text_input_buffer_size_ssid = 64;
     app->uart_text_input_buffer_size_pass = 64;
@@ -51,17 +45,6 @@ FlipStoreApp *flip_store_app_alloc()
 
     // Main view
     if (!easy_flipper_set_view(&app->view_app_info, FlipStoreViewAppInfo, flip_store_view_draw_callback_app_list, flip_store_input_callback, callback_to_app_list, &app->view_dispatcher, app))
-    {
-        return NULL;
-    }
-
-    // Widget
-    if (!easy_flipper_set_widget(
-            &app->widget,
-            FlipStoreViewAbout,
-            "Welcome to the FlipStore!\n------\nDownload apps via WiFi and\nrun them on your Flipper!\n------\nwww.github.com/jblanked",
-            callback_to_submenu,
-            &app->view_dispatcher))
     {
         return NULL;
     }
@@ -132,7 +115,7 @@ FlipStoreApp *flip_store_app_alloc()
     app->variable_item_pass = variable_item_list_add(app->variable_item_list, "Password", 0, NULL, NULL);
 
     // Submenu
-    if (!easy_flipper_set_submenu(&app->submenu_main, FlipStoreViewSubmenu, "FlipStore v0.7", callback_exit_app, &app->view_dispatcher))
+    if (!easy_flipper_set_submenu(&app->submenu_main, FlipStoreViewSubmenu, "FlipStore v0.7.1", callback_exit_app, &app->view_dispatcher))
     {
         return NULL;
     }

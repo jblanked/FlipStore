@@ -1,5 +1,25 @@
 #include <easy_flipper/easy_flipper.h>
 
+void easy_flipper_dialog(
+    char *header,
+    char *text)
+{
+    DialogsApp *dialogs = furi_record_open(RECORD_DIALOGS);
+    DialogMessage *message = dialog_message_alloc();
+    dialog_message_set_header(
+        message, header, 64, 0, AlignCenter, AlignTop);
+    dialog_message_set_text(
+        message,
+        text,
+        0,
+        63,
+        AlignLeft,
+        AlignBottom);
+    dialog_message_show(dialogs, message);
+    dialog_message_free(message);
+    furi_record_close(RECORD_DIALOGS);
+}
+
 /**
  * @brief Navigation callback for exiting the application
  * @param context The context - unused

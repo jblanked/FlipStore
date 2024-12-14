@@ -92,6 +92,9 @@ bool flip_store_process_app_list()
         return false;
     }
 
+    // free the resources
+    flipper_http_deinit();
+
     char *data_cstr = (char *)furi_string_get_cstr(feed_data);
     if (data_cstr == NULL)
     {
@@ -289,14 +292,23 @@ bool flip_store_process_app_list()
 
 bool flip_store_get_fap_file(char *build_id, uint8_t target, uint16_t api_major, uint16_t api_minor)
 {
+    if (!app_instance)
+    {
+        FURI_LOG_E(TAG, "FlipStoreApp is NULL");
+        return false;
+    }
+    // initialize the http
+    if (!flipper_http_init(flipper_http_rx_callback, app_instance))
+    {
+        FURI_LOG_E(TAG, "Failed to initialize FlipperHTTP.");
+        return false;
+    }
+    fhttp.state = IDLE;
     char url[128];
     fhttp.save_received_data = false;
     fhttp.is_bytes_request = true;
     snprintf(url, sizeof(url), "https://catalog.flipperzero.one/api/v0/application/version/%s/build/compatible?target=f%d&api=%d.%d", build_id, target, api_major, api_minor);
-    char *headers = jsmn("Content-Type", "application/octet-stream");
-    bool sent_request = flipper_http_get_request_bytes(url, headers);
-    free(headers);
-    return sent_request;
+    return flipper_http_get_request_bytes(url, "{\"Content-Type\": \"application/octet-stream\"}");
 }
 
 bool flip_store_install_app(char *category)

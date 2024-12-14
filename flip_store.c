@@ -1,6 +1,6 @@
 #include <flip_store.h>
+#include <apps/flip_store_apps.h>
 
-void flip_store_loader_free_model(View *view);
 FlipStoreApp *app_instance = NULL;
 
 // Function to free the resources used by FlipStoreApp
@@ -11,6 +11,8 @@ void flip_store_app_free(FlipStoreApp *app)
         FURI_LOG_E(TAG, "FlipStoreApp is NULL");
         return;
     }
+
+    flip_catalog_free();
 
     // Free Widget(s)
     if (app->widget_result)
@@ -54,68 +56,6 @@ void flip_store_app_free(FlipStoreApp *app)
         view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewFirmwares);
         submenu_free(app->submenu_firmwares);
     }
-    if (app->submenu_app_list_bluetooth)
-    {
-        view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewAppListBluetooth);
-        submenu_free(app->submenu_app_list_bluetooth);
-    }
-    if (app->submenu_app_list_games)
-    {
-        view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewAppListGames);
-        submenu_free(app->submenu_app_list_games);
-    }
-    if (app->submenu_app_list_gpio)
-    {
-        view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewAppListGPIO);
-        submenu_free(app->submenu_app_list_gpio);
-    }
-    if (app->submenu_app_list_infrared)
-    {
-        view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewAppListInfrared);
-        submenu_free(app->submenu_app_list_infrared);
-    }
-    if (app->submenu_app_list_ibutton)
-    {
-        view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewAppListiButton);
-        submenu_free(app->submenu_app_list_ibutton);
-    }
-    if (app->submenu_app_list_media)
-    {
-        view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewAppListMedia);
-        submenu_free(app->submenu_app_list_media);
-    }
-    if (app->submenu_app_list_nfc)
-    {
-        view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewAppListNFC);
-        submenu_free(app->submenu_app_list_nfc);
-    }
-    if (app->submenu_app_list_rfid)
-    {
-        view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewAppListRFID);
-        submenu_free(app->submenu_app_list_rfid);
-    }
-    if (app->submenu_app_list_subghz)
-    {
-        view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewAppListSubGHz);
-        submenu_free(app->submenu_app_list_subghz);
-    }
-    if (app->submenu_app_list_tools)
-    {
-        view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewAppListTools);
-        submenu_free(app->submenu_app_list_tools);
-    }
-    if (app->submenu_app_list_usb)
-    {
-        view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewAppListUSB);
-        submenu_free(app->submenu_app_list_usb);
-    }
-
-    // Free Widget(s)
-    if (app->widget)
-    {
-        view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewAbout);
-        widget_free(app->widget);
-    }
 
     // Free Variable Item List(s)
     if (app->variable_item_list)
@@ -154,9 +94,6 @@ void flip_store_app_free(FlipStoreApp *app)
         view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewFirmwareDialog);
         dialog_ex_free(app->dialog_firmware);
     }
-
-    // deinitalize flipper http
-    flipper_http_deinit();
 
     // free the view dispatcher
     view_dispatcher_free(app->view_dispatcher);
