@@ -100,6 +100,11 @@ static char *flip_store_parse_app_list(DataLoaderModel *model)
         return "Failed to fetch app list.";
     }
     FlipStoreApp *app = (FlipStoreApp *)model->parser_context;
+    if (!app)
+    {
+        FURI_LOG_E(TAG, "FlipStoreApp is NULL");
+        return "Failed to fetch app list.";
+    }
     return set_appropriate_list(model->fhttp, &app->submenu_app_list_category, app) ? "App list fetched successfully." : "Failed to fetch app list.";
 }
 static void flip_store_switch_to_app_list(FlipStoreApp *app)
@@ -173,7 +178,7 @@ static char *flip_store_parse_firmware(DataLoaderModel *model)
             return "Firmware downloaded successfully";
         }
     }
-    return NULL;
+    return "Failed to download firmware.";
 }
 static void flip_store_switch_to_firmware_list(FlipStoreApp *app)
 {
@@ -415,19 +420,26 @@ static void flip_store_text_updated_pass(void *context)
     // switch to the settings view
     view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewSettings);
 }
+static void free_category_submenu(FlipStoreApp *app)
+{
+    if (!app)
+    {
+        FURI_LOG_E(TAG, "FlipStoreApp is NULL");
+        return;
+    }
+    if (app->submenu_app_list_category)
+    {
+        view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewAppListCategory);
+        submenu_free(app->submenu_app_list_category);
+        app->submenu_app_list_category = NULL;
+    }
+}
 
 uint32_t callback_to_submenu(void *context)
 {
     UNUSED(context);
     firmware_free();
     return FlipStoreViewSubmenu;
-}
-
-uint32_t callback_to_submenu_options(void *context)
-{
-    UNUSED(context);
-    firmware_free();
-    return FlipStoreViewSubmenuOptions;
 }
 
 uint32_t callback_to_firmware_list(void *context)
@@ -677,6 +689,12 @@ static void free_variable_item_list(FlipStoreApp *app)
 static bool alloc_dialog_firmware(void *context)
 {
     FlipStoreApp *app = (FlipStoreApp *)context;
+    if (!app)
+    {
+        FURI_LOG_E(TAG, "FlipStoreApp is NULL");
+        return false;
+    }
+    FURI_LOG_I(TAG, "Allocating dialog_firmware");
     if (!app->dialog_firmware)
     {
         if (!easy_flipper_set_dialog_ex(
@@ -708,13 +726,10 @@ static bool alloc_dialog_firmware(void *context)
 }
 static void free_dialog_firmware(FlipStoreApp *app)
 {
-    if (!app)
+    if (app && app->dialog_firmware)
     {
-        FURI_LOG_E(TAG, "FlipStoreApp is NULL");
-        return;
-    }
-    if (app->dialog_firmware)
-    {
+        FURI_LOG_I(TAG, "Freeing dialog_firmware");
+        // uncommenting below causes a furi-check failed
         view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewFirmwareDialog);
         dialog_ex_free(app->dialog_firmware);
         app->dialog_firmware = NULL;
@@ -761,6 +776,19 @@ static void free_app_info_view(FlipStoreApp *app)
         app->view_app_info = NULL;
     }
 }
+uint32_t callback_to_submenu_options(void *context)
+{
+    // firmware_free();
+    FlipStoreApp *app = (FlipStoreApp *)context;
+    if (!app)
+    {
+        FURI_LOG_E(TAG, "FlipStoreApp is NULL");
+        return FlipStoreViewSubmenuOptions;
+    }
+    free_category_submenu(app);
+    // free_dialog_firmware(app);
+    return FlipStoreViewSubmenuOptions;
+}
 static void free_all_views(FlipStoreApp *app, bool should_free_variable_item_list)
 {
     if (!app)
@@ -774,12 +802,7 @@ static void free_all_views(FlipStoreApp *app, bool should_free_variable_item_lis
     {
         free_variable_item_list(app);
     }
-    if (app->submenu_app_list_category)
-    {
-        view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewAppListCategory);
-        submenu_free(app->submenu_app_list_category);
-        app->submenu_app_list_category = NULL;
-    }
+    free_category_submenu(app);
     free_text_input_view(app);
     free_dialog_firmware(app);
     free_app_info_view(app);
@@ -829,11 +852,6 @@ void callback_submenu_choices(void *context, uint32_t index)
         view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewAppList);
         break;
     case FlipStoreSubmenuIndexFirmwares:
-        if (!app->submenu_firmwares)
-        {
-            FURI_LOG_E(TAG, "Submenu firmwares is NULL");
-            return;
-        }
         firmwares = firmware_alloc();
         if (firmwares == NULL)
         {
@@ -928,7 +946,7 @@ void callback_submenu_choices(void *context, uint32_t index)
                 selected_firmware_index = firmware_index;
 
                 // Switch to the firmware download view
-                free_all_views(app, true);
+                free_dialog_firmware(app);
                 if (!alloc_dialog_firmware(app))
                 {
                     FURI_LOG_E(TAG, "Failed to allocate dialog firmware");

@@ -82,6 +82,7 @@ void firmware_free()
     if (firmwares)
     {
         free(firmwares);
+        firmwares = NULL;
     }
 }
 
