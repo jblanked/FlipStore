@@ -41,6 +41,7 @@ void flip_catalog_free()
     if (flip_catalog)
     {
         free(flip_catalog);
+        flip_catalog = NULL;
     }
 }
 

@@ -728,8 +728,6 @@ static void free_dialog_firmware(FlipStoreApp *app)
 {
     if (app && app->dialog_firmware)
     {
-        FURI_LOG_I(TAG, "Freeing dialog_firmware");
-        // uncommenting below causes a furi-check failed
         view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewFirmwareDialog);
         dialog_ex_free(app->dialog_firmware);
         app->dialog_firmware = NULL;
@@ -778,15 +776,16 @@ static void free_app_info_view(FlipStoreApp *app)
 }
 uint32_t callback_to_submenu_options(void *context)
 {
-    // firmware_free();
     FlipStoreApp *app = (FlipStoreApp *)context;
     if (!app)
     {
         FURI_LOG_E(TAG, "FlipStoreApp is NULL");
         return FlipStoreViewSubmenuOptions;
     }
+    firmware_free();
+    flip_catalog_free();
     free_category_submenu(app);
-    // free_dialog_firmware(app);
+    free_dialog_firmware(app);
     return FlipStoreViewSubmenuOptions;
 }
 static void free_all_views(FlipStoreApp *app, bool should_free_variable_item_list)
