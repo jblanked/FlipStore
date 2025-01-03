@@ -46,10 +46,10 @@ FlipStoreAppInfo *flip_catalog_alloc();
 void flip_catalog_free();
 
 // Utility function to parse JSON incrementally from a file
-bool flip_store_process_app_list();
+bool flip_store_process_app_list(FlipperHTTP *fhttp);
 
-bool flip_store_get_fap_file(char *build_id, uint8_t target, uint16_t api_major, uint16_t api_minor);
+bool flip_store_get_fap_file(FlipperHTTP *fhttp, char *build_id, uint8_t target, uint16_t api_major, uint16_t api_minor);
 
 // function to handle the entire installation process "asynchronously"
-bool flip_store_install_app(char *category);
+bool flip_store_install_app(FlipperHTTP *fhttp, char *category);
 #endif // FLIP_STORE_APPS_H

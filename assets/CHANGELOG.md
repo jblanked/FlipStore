@@ -1,3 +1,6 @@
+## v0.8
+- Updated FlipperHTTP to the latest library.
+
 ## v0.7.2
 - Final memory allocation improvements
 

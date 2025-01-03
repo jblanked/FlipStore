@@ -44,8 +44,13 @@ void flip_catalog_free()
     }
 }
 
-bool flip_store_process_app_list()
+bool flip_store_process_app_list(FlipperHTTP *fhttp)
 {
+    if (!fhttp)
+    {
+        FURI_LOG_E(TAG, "FlipperHTTP is NULL.");
+        return false;
+    }
     // Initialize the flip_catalog
     flip_catalog = flip_catalog_alloc();
     if (!flip_catalog)
@@ -54,15 +59,12 @@ bool flip_store_process_app_list()
         return false;
     }
 
-    FuriString *feed_data = flipper_http_load_from_file(fhttp.file_path);
+    FuriString *feed_data = flipper_http_load_from_file(fhttp->file_path);
     if (feed_data == NULL)
     {
         FURI_LOG_E(TAG, "Failed to load received data from file.");
         return false;
     }
-
-    // free the resources
-    flipper_http_deinit();
 
     char *data_cstr = (char *)furi_string_get_cstr(feed_data);
     if (data_cstr == NULL)
@@ -259,29 +261,33 @@ bool flip_store_process_app_list()
     return app_count > 0;
 }
 
-bool flip_store_get_fap_file(char *build_id, uint8_t target, uint16_t api_major, uint16_t api_minor)
+bool flip_store_get_fap_file(FlipperHTTP *fhttp, char *build_id, uint8_t target, uint16_t api_major, uint16_t api_minor)
 {
-    if (!app_instance)
+    if (!fhttp)
     {
-        FURI_LOG_E(TAG, "FlipStoreApp is NULL");
+        FURI_LOG_E(TAG, "FlipperHTTP is NULL.");
         return false;
     }
-    // initialize the http
-    if (!flipper_http_init(flipper_http_rx_callback, app_instance))
+    if (!build_id)
     {
-        FURI_LOG_E(TAG, "Failed to initialize FlipperHTTP.");
+        FURI_LOG_E(TAG, "Build ID is NULL.");
         return false;
     }
-    fhttp.state = IDLE;
+    fhttp->state = IDLE;
     char url[128];
-    fhttp.save_received_data = false;
-    fhttp.is_bytes_request = true;
+    fhttp->save_received_data = false;
+    fhttp->is_bytes_request = true;
     snprintf(url, sizeof(url), "https://catalog.flipperzero.one/api/v0/application/version/%s/build/compatible?target=f%d&api=%d.%d", build_id, target, api_major, api_minor);
-    return flipper_http_get_request_bytes(url, "{\"Content-Type\": \"application/octet-stream\"}");
+    return flipper_http_get_request_bytes(fhttp, url, "{\"Content-Type\": \"application/octet-stream\"}");
 }
 
-bool flip_store_install_app(char *category)
+bool flip_store_install_app(FlipperHTTP *fhttp, char *category)
 {
+    if (!fhttp)
+    {
+        FURI_LOG_E(TAG, "FlipperHTTP is NULL.");
+        return false;
+    }
     // create /apps/FlipStore directory if it doesn't exist
     char directory_path[128];
     snprintf(directory_path, sizeof(directory_path), STORAGE_EXT_PATH_PREFIX "/apps/%s", category);
@@ -289,15 +295,16 @@ bool flip_store_install_app(char *category)
     // Create the directory
     Storage *storage = furi_record_open(RECORD_STORAGE);
     storage_common_mkdir(storage, directory_path);
+    furi_record_close(RECORD_STORAGE);
 
-    snprintf(fhttp.file_path, sizeof(fhttp.file_path), STORAGE_EXT_PATH_PREFIX "/apps/%s/%s.fap", category, flip_catalog[app_selected_index].app_id);
+    snprintf(fhttp->file_path, sizeof(fhttp->file_path), STORAGE_EXT_PATH_PREFIX "/apps/%s/%s.fap", category, flip_catalog[app_selected_index].app_id);
 
     uint8_t target = furi_hal_version_get_hw_target();
     uint16_t api_major, api_minor;
     furi_hal_info_get_api_version(&api_major, &api_minor);
-    if (fhttp.state != INACTIVE && flip_store_get_fap_file(flip_catalog[app_selected_index].app_build_id, target, api_major, api_minor))
+    if (fhttp->state != INACTIVE && flip_store_get_fap_file(fhttp, flip_catalog[app_selected_index].app_build_id, target, api_major, api_minor))
     {
-        fhttp.state = RECEIVING;
+        fhttp->state = RECEIVING;
         return true;
     }
     else

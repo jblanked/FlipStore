@@ -16,7 +16,7 @@ Firmware *firmware_alloc();
 void firmware_free();
 
 // download and waiting process
-bool flip_store_get_firmware_file(char *link, char *name, char *filename);
+bool flip_store_get_firmware_file(FlipperHTTP *fhttp, char *link, char *name, char *filename);
 
 extern bool sent_firmware_request;
 extern bool sent_firmware_request_2;

@@ -85,9 +85,14 @@ void firmware_free()
     }
 }
 
-bool flip_store_get_firmware_file(char *link, char *name, char *filename)
+bool flip_store_get_firmware_file(FlipperHTTP *fhttp, char *link, char *name, char *filename)
 {
-    if (fhttp.state == INACTIVE)
+    if (!fhttp)
+    {
+        FURI_LOG_E(TAG, "FlipperHTTP is NULL");
+        return false;
+    }
+    if (fhttp->state == INACTIVE)
     {
         return false;
     }
@@ -97,15 +102,16 @@ bool flip_store_get_firmware_file(char *link, char *name, char *filename)
     storage_common_mkdir(storage, directory_path);
     snprintf(directory_path, sizeof(directory_path), STORAGE_EXT_PATH_PREFIX "/apps_data/esp_flasher/%s", firmwares[selected_firmware_index].name);
     storage_common_mkdir(storage, directory_path);
-    snprintf(fhttp.file_path, sizeof(fhttp.file_path), STORAGE_EXT_PATH_PREFIX "/apps_data/esp_flasher/%s/%s", name, filename);
-    fhttp.save_received_data = false;
-    fhttp.is_bytes_request = true;
-    bool sent_request = flipper_http_get_request_bytes(link, "{\"Content-Type\":\"application/octet-stream\"}");
+    snprintf(fhttp->file_path, sizeof(fhttp->file_path), STORAGE_EXT_PATH_PREFIX "/apps_data/esp_flasher/%s/%s", name, filename);
+    furi_record_close(RECORD_STORAGE);
+    fhttp->save_received_data = false;
+    fhttp->is_bytes_request = true;
+    bool sent_request = flipper_http_get_request_bytes(fhttp, link, "{\"Content-Type\":\"application/octet-stream\"}");
     if (sent_request)
     {
-        fhttp.state = RECEIVING;
+        fhttp->state = RECEIVING;
         return true;
     }
-    fhttp.state = ISSUE;
+    fhttp->state = ISSUE;
     return false;
 }

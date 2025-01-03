@@ -15,7 +15,7 @@
 #include <flip_store_icons.h>
 
 #define TAG "FlipStore"
-#define VERSION_TAG "FlipStore v0.7.2"
+#define VERSION_TAG "FlipStore v0.8"
 
 #define FIRMWARE_COUNT 3
 #define FIRMWARE_LINKS 3
@@ -104,8 +104,5 @@ typedef struct
 } FlipStoreApp;
 
 void flip_store_app_free(FlipStoreApp *app);
-
-void flip_store_request_error(Canvas *canvas);
-extern FlipStoreApp *app_instance;
 
 #endif // FLIP_STORE_E_H
