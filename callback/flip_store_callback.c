@@ -434,6 +434,7 @@ static void free_category_submenu(FlipStoreApp *app)
         app->submenu_app_list_category = NULL;
     }
 }
+static void free_variable_item_list(FlipStoreApp *app);
 
 uint32_t callback_to_submenu(void *context)
 {
@@ -694,7 +695,7 @@ static bool alloc_dialog_firmware(void *context)
         FURI_LOG_E(TAG, "FlipStoreApp is NULL");
         return false;
     }
-    FURI_LOG_I(TAG, "Allocating dialog_firmware");
+
     if (!app->dialog_firmware)
     {
         if (!easy_flipper_set_dialog_ex(
@@ -785,10 +786,9 @@ uint32_t callback_to_submenu_options(void *context)
     firmware_free();
     flip_catalog_free();
     free_category_submenu(app);
-    free_dialog_firmware(app);
     return FlipStoreViewSubmenuOptions;
 }
-static void free_all_views(FlipStoreApp *app, bool should_free_variable_item_list)
+void free_all_views(FlipStoreApp *app, bool should_free_variable_item_list)
 {
     if (!app)
     {
@@ -805,6 +805,7 @@ static void free_all_views(FlipStoreApp *app, bool should_free_variable_item_lis
     free_text_input_view(app);
     free_dialog_firmware(app);
     free_app_info_view(app);
+    firmware_free();
 }
 uint32_t callback_exit_app(void *context)
 {

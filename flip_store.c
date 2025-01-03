@@ -47,6 +47,8 @@ void flip_store_app_free(FlipStoreApp *app)
         submenu_free(app->submenu_firmwares);
     }
 
+    free_all_views(app, true);
+
     // free the view dispatcher
     if (app->view_dispatcher)
         view_dispatcher_free(app->view_dispatcher);

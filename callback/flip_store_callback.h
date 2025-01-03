@@ -26,6 +26,8 @@ uint32_t callback_to_app_list(void *context);
 uint32_t callback_exit_app(void *context);
 void callback_submenu_choices(void *context, uint32_t index);
 
+void free_all_views(FlipStoreApp *app, bool should_free_variable_item_list);
+
 // Add edits by Derek Jamison
 typedef enum DataState DataState;
 enum DataState
