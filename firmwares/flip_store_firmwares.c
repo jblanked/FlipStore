@@ -102,12 +102,5 @@ bool flip_store_get_firmware_file(FlipperHTTP *fhttp, char *link, char *name, ch
     furi_record_close(RECORD_STORAGE);
     fhttp->save_received_data = false;
     fhttp->is_bytes_request = true;
-    bool sent_request = flipper_http_get_request_bytes(fhttp, link, "{\"Content-Type\":\"application/octet-stream\"}");
-    if (sent_request)
-    {
-        fhttp->state = RECEIVING;
-        return true;
-    }
-    fhttp->state = ISSUE;
-    return false;
+    return flipper_http_get_request_bytes(fhttp, link, "{\"Content-Type\":\"application/octet-stream\"}");
 }

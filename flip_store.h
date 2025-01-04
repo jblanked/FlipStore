@@ -24,6 +24,8 @@
 #define VGM_FIRMWARE_COUNT 1
 #define VGM_FIRMWARE_LINKS 1
 
+#define MAX_GITHUB_FILES 30
+
 // Define the submenu items for our FlipStore application
 typedef enum
 {

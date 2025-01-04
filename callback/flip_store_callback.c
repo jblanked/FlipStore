@@ -1,4 +1,5 @@
 #include <callback/flip_store_callback.h>
+#include <github/flip_store_github.h>
 
 // Below added by Derek Jamison
 // FURI_LOG_DEV will log only during app development. Be sure that Settings/System/Log Device is "LPUART"; so we dont use serial port.
@@ -254,7 +255,8 @@ static bool flip_store_input_callback(InputEvent *event, void *context)
 
     return false;
 }
-
+static void free_text_input_view(FlipStoreApp *app);
+static bool alloc_text_input_view(void *context, char *title);
 static void flip_store_text_updated_ssid(void *context)
 {
     FlipStoreApp *app = (FlipStoreApp *)context;
@@ -366,6 +368,103 @@ static void flip_store_text_updated_pass(void *context)
 
     // switch to the settings view
     view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewSettings);
+}
+static void flip_store_text_updated_repo(void *context);
+static void flip_store_text_updated_author(void *context)
+{
+    FlipStoreApp *app = (FlipStoreApp *)context;
+    if (!app)
+    {
+        FURI_LOG_E(TAG, "FlipStoreApp is NULL");
+        return;
+    }
+
+    // store the entered text
+    strncpy(app->uart_text_input_buffer, app->uart_text_input_temp_buffer, app->uart_text_input_buffer_size);
+
+    // Ensure null-termination
+    app->uart_text_input_buffer[app->uart_text_input_buffer_size - 1] = '\0';
+
+    // save the setting
+    save_char("Github-Author", app->uart_text_input_buffer);
+
+    view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewSubmenu);
+    uart_text_input_reset(app->uart_text_input);
+    uart_text_input_set_header_text(app->uart_text_input, "Repository");
+    app->uart_text_input_buffer_size = 64;
+    free(app->uart_text_input_buffer);
+    free(app->uart_text_input_temp_buffer);
+    easy_flipper_set_buffer(&app->uart_text_input_buffer, app->uart_text_input_buffer_size);
+    easy_flipper_set_buffer(&app->uart_text_input_temp_buffer, app->uart_text_input_buffer_size);
+    uart_text_input_set_result_callback(app->uart_text_input, flip_store_text_updated_repo, app, app->uart_text_input_temp_buffer, app->uart_text_input_buffer_size, false);
+    view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewTextInput);
+}
+
+static bool flip_store_fetch_github(DataLoaderModel *model)
+{
+    if (!model || !model->fhttp)
+    {
+        FURI_LOG_E(TAG, "Model/FlipperHTTP is NULL");
+        return false;
+    }
+
+    if (model->request_index == 0)
+    {
+        char author[64];
+        char repo[64];
+        if (!load_char("Github-Author", author, sizeof(author)) || !load_char("Github-Repo", repo, sizeof(repo)))
+        {
+            FURI_LOG_E(TAG, "Failed to load Github author or repo");
+            return false;
+        }
+
+        return flip_store_get_github_contents(model->fhttp, author, repo);
+    }
+    return false; // return false for now
+}
+
+static char *flip_store_parse_github(DataLoaderModel *model)
+{
+    if (model->request_index == 0)
+    {
+        char author[64];
+        char repo[64];
+        if (!load_char("Github-Author", author, sizeof(author)) || !load_char("Github-Repo", repo, sizeof(repo)))
+        {
+            FURI_LOG_E(TAG, "Failed to load Github author or repo");
+            return "Failed to load Github author or repo";
+        }
+        if (!flip_store_parse_github_contents(model->fhttp->file_path, author, repo))
+        {
+            return "Failed to parse Github contents";
+        }
+        return "Repository contents fetched...";
+    }
+    return "Failed to download repository.";
+}
+static void flip_store_github_switch_to_view(FlipStoreApp *app)
+{
+    flip_store_generic_switch_to_view(app, "Downloading Repository..", flip_store_fetch_github, flip_store_parse_github, 1, callback_to_submenu_options, FlipStoreViewLoader);
+}
+static void flip_store_text_updated_repo(void *context)
+{
+    FlipStoreApp *app = (FlipStoreApp *)context;
+    if (!app)
+    {
+        FURI_LOG_E(TAG, "FlipStoreApp is NULL");
+        return;
+    }
+
+    // store the entered text
+    strncpy(app->uart_text_input_buffer, app->uart_text_input_temp_buffer, app->uart_text_input_buffer_size);
+
+    // Ensure null-termination
+    app->uart_text_input_buffer[app->uart_text_input_buffer_size - 1] = '\0';
+
+    // save the setting
+    save_char("Github-Repo", app->uart_text_input_buffer);
+    view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewSubmenuOptions);
+    flip_store_github_switch_to_view(app);
 }
 static void free_category_submenu(FlipStoreApp *app)
 {
@@ -515,34 +614,58 @@ static bool alloc_text_input_view(void *context, char *title)
     }
     if (!app->uart_text_input)
     {
-        if (!easy_flipper_set_uart_text_input(
-                &app->uart_text_input,
-                FlipStoreViewTextInput,
-                title,
-                app->uart_text_input_temp_buffer,
-                app->uart_text_input_buffer_size,
-                strcmp(title, "SSID") == 0 ? flip_store_text_updated_ssid : flip_store_text_updated_pass,
-                callback_to_wifi_settings,
-                &app->view_dispatcher,
-                app))
+        if (strcmp(title, "SSID") != 0 && strcmp(title, "Password") != 0)
         {
-            return false;
-        }
-        if (!app->uart_text_input)
-        {
-            return false;
-        }
-        char ssid[64];
-        char pass[64];
-        if (load_settings(ssid, sizeof(ssid), pass, sizeof(pass)))
-        {
-            if (strcmp(title, "SSID") == 0)
+            // Github repository download
+            if (!easy_flipper_set_uart_text_input(
+                    &app->uart_text_input,
+                    FlipStoreViewTextInput,
+                    title,
+                    app->uart_text_input_temp_buffer,
+                    app->uart_text_input_buffer_size,
+                    strcmp(title, "Author") == 0 ? flip_store_text_updated_author : flip_store_text_updated_repo,
+                    callback_to_submenu_options,
+                    &app->view_dispatcher,
+                    app))
             {
-                strncpy(app->uart_text_input_temp_buffer, ssid, app->uart_text_input_buffer_size);
+                return false;
             }
-            else
+            if (!app->uart_text_input)
             {
-                strncpy(app->uart_text_input_temp_buffer, pass, app->uart_text_input_buffer_size);
+                return false;
+            }
+        }
+        else
+        {
+            if (!easy_flipper_set_uart_text_input(
+                    &app->uart_text_input,
+                    FlipStoreViewTextInput,
+                    title,
+                    app->uart_text_input_temp_buffer,
+                    app->uart_text_input_buffer_size,
+                    strcmp(title, "SSID") == 0 ? flip_store_text_updated_ssid : flip_store_text_updated_pass,
+                    callback_to_wifi_settings,
+                    &app->view_dispatcher,
+                    app))
+            {
+                return false;
+            }
+            if (!app->uart_text_input)
+            {
+                return false;
+            }
+            char ssid[64];
+            char pass[64];
+            if (load_settings(ssid, sizeof(ssid), pass, sizeof(pass)))
+            {
+                if (strcmp(title, "SSID") == 0)
+                {
+                    strncpy(app->uart_text_input_temp_buffer, ssid, app->uart_text_input_buffer_size);
+                }
+                else
+                {
+                    strncpy(app->uart_text_input_temp_buffer, pass, app->uart_text_input_buffer_size);
+                }
             }
         }
     }
@@ -739,6 +862,7 @@ uint32_t callback_to_submenu_options(void *context)
         return FlipStoreViewSubmenuOptions;
     }
     firmware_free();
+    vgm_firmware_free();
     flip_catalog_free();
     free_category_submenu(app);
     return FlipStoreViewSubmenuOptions;
@@ -818,12 +942,18 @@ static void fetch_appropiate_app_list(FlipStoreApp *app, int iteration)
     }
     bool fetch_app_list()
     {
+        // ensure /apps_data/flip_store/data exists
+        Storage *storage = furi_record_open(RECORD_STORAGE);
+        char dir[256];
+        snprintf(dir, sizeof(dir), STORAGE_EXT_PATH_PREFIX "/apps_data/flip_store/data");
+        storage_common_mkdir(storage, dir);
+        furi_record_close(RECORD_STORAGE);
         fhttp->state = IDLE;
         flip_catalog_free();
         snprintf(
             fhttp->file_path,
             sizeof(fhttp->file_path),
-            STORAGE_EXT_PATH_PREFIX "/apps_data/flip_store/%s.json", categories[flip_store_category_index]);
+            STORAGE_EXT_PATH_PREFIX "/apps_data/flip_store/data/%s.json", categories[flip_store_category_index]);
         fhttp->save_received_data = true;
         fhttp->is_bytes_request = false;
         char url[256];
@@ -906,6 +1036,15 @@ void callback_submenu_choices(void *context, uint32_t index)
             submenu_add_item(app->submenu_vgm_firmwares, vgm_firmwares[i].name, FlipStoreSubmenuIndexStartVGMFirmwares + i, callback_submenu_choices, app);
         }
         view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewVGMFirmwares);
+        break;
+    case FlipStoreSubmenuIndexGitHub: // github
+        free_all_views(app, true);
+        if (!alloc_text_input_view(app, "Author"))
+        {
+            FURI_LOG_E(TAG, "Failed to allocate text input view");
+            return;
+        }
+        view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewTextInput);
         break;
     case FlipStoreSubmenuIndexAppListBluetooth:
         free_all_views(app, true);

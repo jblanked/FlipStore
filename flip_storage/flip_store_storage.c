@@ -326,7 +326,7 @@ bool save_char(
     }
     // Create the directory for saving settings
     char directory_path[256];
-    snprintf(directory_path, sizeof(directory_path), STORAGE_EXT_PATH_PREFIX "/apps_data/flip_store");
+    snprintf(directory_path, sizeof(directory_path), STORAGE_EXT_PATH_PREFIX "/apps_data/flip_store/data");
 
     // Create the directory
     Storage *storage = furi_record_open(RECORD_STORAGE);
@@ -335,7 +335,7 @@ bool save_char(
     // Open the settings file
     File *file = storage_file_alloc(storage);
     char file_path[256];
-    snprintf(file_path, sizeof(file_path), STORAGE_EXT_PATH_PREFIX "/apps_data/flip_store/%s.txt", path_name);
+    snprintf(file_path, sizeof(file_path), STORAGE_EXT_PATH_PREFIX "/apps_data/flip_store/data/%s.txt", path_name);
 
     // Open the file in write mode
     if (!storage_file_open(file, file_path, FSAM_WRITE, FSOM_CREATE_ALWAYS))
@@ -377,7 +377,7 @@ bool load_char(
     File *file = storage_file_alloc(storage);
 
     char file_path[256];
-    snprintf(file_path, sizeof(file_path), STORAGE_EXT_PATH_PREFIX "/apps_data/flip_store/%s.txt", path_name);
+    snprintf(file_path, sizeof(file_path), STORAGE_EXT_PATH_PREFIX "/apps_data/flip_store/data/%s.txt", path_name);
 
     // Open the file for reading
     if (!storage_file_open(file, file_path, FSAM_READ, FSOM_OPEN_EXISTING))
@@ -400,6 +400,43 @@ bool load_char(
 
     // Ensure null-termination
     value[read_count - 1] = '\0';
+
+    storage_file_close(file);
+    storage_file_free(file);
+    furi_record_close(RECORD_STORAGE);
+
+    return true;
+}
+
+bool save_char_with_path(const char *full_path, const char *value)
+{
+    if (!value)
+    {
+        return false;
+    }
+
+    Storage *storage = furi_record_open(RECORD_STORAGE);
+    File *file = storage_file_alloc(storage);
+
+    // Open the file in write mode
+    if (!storage_file_open(file, full_path, FSAM_WRITE, FSOM_CREATE_ALWAYS))
+    {
+        FURI_LOG_E(HTTP_TAG, "Failed to open file for writing: %s", full_path);
+        storage_file_free(file);
+        furi_record_close(RECORD_STORAGE);
+        return false;
+    }
+
+    // Write the data to the file
+    size_t data_size = strlen(value) + 1; // Include null terminator
+    if (storage_file_write(file, value, data_size) != data_size)
+    {
+        FURI_LOG_E(HTTP_TAG, "Failed to append data to file");
+        storage_file_close(file);
+        storage_file_free(file);
+        furi_record_close(RECORD_STORAGE);
+        return false;
+    }
 
     storage_file_close(file);
     storage_file_free(file);
