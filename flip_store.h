@@ -12,6 +12,7 @@
 #include <notification/notification.h>
 #include <dialogs/dialogs.h>
 #include <jsmn/jsmn.h>
+#include <jsmn/jsmn_furi.h>
 #include <flip_store_icons.h>
 
 #define TAG "FlipStore"

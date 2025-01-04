@@ -107,6 +107,16 @@ FuriString *flipper_http_load_from_file(char *file_path)
     // Reset the FuriString to ensure it's empty before reading
     furi_string_reset(str_result);
 
+    if (memmgr_get_free_heap() < MAX_FILE_SHOW)
+    {
+        FURI_LOG_E(HTTP_TAG, "Not enough heap to read file.");
+        furi_string_free(str_result);
+        storage_file_close(file);
+        storage_file_free(file);
+        furi_record_close(RECORD_STORAGE);
+        return NULL;
+    }
+
     // Define a buffer to hold the read data
     uint8_t *buffer = (uint8_t *)malloc(MAX_FILE_SHOW);
     if (!buffer)

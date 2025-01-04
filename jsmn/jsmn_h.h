@@ -51,3 +51,6 @@ typedef struct
 } FuriJSON;
 
 FuriString *char_to_furi_string(const char *str);
+
+// check memory
+bool jsmn_memory_check(size_t heap_size);

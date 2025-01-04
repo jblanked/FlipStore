@@ -13,6 +13,7 @@
 #define MAX_APP_VERSION_LENGTH 5
 
 // define the list of categories
+extern char *category_ids[];
 extern char *categories[];
 
 typedef struct

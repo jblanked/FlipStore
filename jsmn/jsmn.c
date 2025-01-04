@@ -454,6 +454,11 @@ char *get_json_value(char *key, const char *json_data)
         jsmn_parser parser;
         jsmn_init(&parser);
         uint32_t max_tokens = json_token_count(json_data);
+        if (!jsmn_memory_check(max_tokens))
+        {
+            FURI_LOG_E("JSMM.H", "Insufficient memory for JSON tokens.");
+            return NULL;
+        }
         // Allocate tokens array on the heap
         jsmntok_t *tokens = malloc(sizeof(jsmntok_t) * max_tokens);
         if (tokens == NULL)
@@ -572,6 +577,12 @@ char *get_json_array_value(char *key, uint32_t index, const char *json_data)
         return NULL;
     }
     uint32_t max_tokens = json_token_count(array_str);
+    if (!jsmn_memory_check(max_tokens))
+    {
+        FURI_LOG_E("JSMM.H", "Insufficient memory for JSON tokens.");
+        free(array_str);
+        return NULL;
+    }
 
     jsmn_parser parser;
     jsmn_init(&parser);
@@ -602,7 +613,7 @@ char *get_json_array_value(char *key, uint32_t index, const char *json_data)
 
     if (index >= (uint32_t)tokens[0].size)
     {
-        FURI_LOG_E("JSMM.H", "Index %lu out of bounds for array with size %u.", index, tokens[0].size);
+        // FURI_LOG_E("JSMM.H", "Index %lu out of bounds for array with size %u.", index, tokens[0].size);
         free(tokens);
         free(array_str);
         return NULL;
@@ -654,6 +665,12 @@ char **get_json_array_values(char *key, char *json_data, int *num_values)
         return NULL;
     }
     uint32_t max_tokens = json_token_count(array_str);
+    if (!jsmn_memory_check(max_tokens))
+    {
+        FURI_LOG_E("JSMM.H", "Insufficient memory for JSON tokens.");
+        free(array_str);
+        return NULL;
+    }
     // Initialize the JSON parser
     jsmn_parser parser;
     jsmn_init(&parser);

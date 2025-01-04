@@ -12,3 +12,4 @@ FuriString *char_to_furi_string(const char *str)
     }
     return furi_str;
 }
+bool jsmn_memory_check(size_t heap_size) { return memmgr_get_free_heap() > (heap_size + 1024); }

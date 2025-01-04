@@ -37,81 +37,6 @@ static void flip_store_dl_app_switch_to_view(FlipStoreApp *app)
     flip_store_generic_switch_to_view(app, flip_catalog[app_selected_index].app_name, flip_store_dl_app_fetch, flip_store_dl_app_parse, 1, callback_to_app_category_list, FlipStoreViewLoader);
 }
 //
-static bool flip_store_fetch_app_list(DataLoaderModel *model)
-{
-    if (!model->fhttp)
-    {
-        FURI_LOG_E(TAG, "FlipperHTTP is NULL");
-        return false;
-    }
-    model->fhttp->state = IDLE;
-    flip_catalog_free();
-    snprintf(
-        model->fhttp->file_path,
-        sizeof(model->fhttp->file_path),
-        STORAGE_EXT_PATH_PREFIX "/apps_data/flip_store/%s.json", categories[flip_store_category_index]);
-    model->fhttp->save_received_data = true;
-    model->fhttp->is_bytes_request = false;
-    char url[128];
-    snprintf(url, sizeof(url), "https://www.flipsocial.net/api/flipper/apps/%s/max/", categories[flip_store_category_index]);
-    return flipper_http_get_request_with_headers(model->fhttp, url, "{\"Content-Type\":\"application/json\"}");
-}
-static bool set_appropriate_list(FlipperHTTP *fhttp, Submenu **submenu, FlipStoreApp *app)
-{
-    if (!submenu || !fhttp || !app)
-    {
-        FURI_LOG_E(TAG, "Submenu, FlipperHTTP, or app is NULL");
-        return false;
-    }
-
-    if (!easy_flipper_set_submenu(submenu, FlipStoreViewAppListCategory, categories[flip_store_category_index], callback_to_app_list, &app->view_dispatcher))
-    {
-        return false;
-    }
-    if (flip_store_process_app_list(fhttp) && submenu && flip_catalog)
-    {
-        submenu_reset(*submenu);
-        // add each app name to submenu
-        for (int i = 0; i < MAX_APP_COUNT; i++)
-        {
-            if (strlen(flip_catalog[i].app_name) > 0)
-            {
-                submenu_add_item(*submenu, flip_catalog[i].app_name, FlipStoreSubmenuIndexStartAppList + i, callback_submenu_choices, app);
-            }
-            else
-            {
-                break;
-            }
-        }
-        view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewAppListCategory);
-        return true;
-    }
-    else
-    {
-        FURI_LOG_E(TAG, "Failed to process the app list");
-        return false;
-    }
-    return false;
-}
-static char *flip_store_parse_app_list(DataLoaderModel *model)
-{
-    if (!model->fhttp)
-    {
-        return "Failed to fetch app list.";
-    }
-    FlipStoreApp *app = (FlipStoreApp *)model->parser_context;
-    if (!app)
-    {
-        FURI_LOG_E(TAG, "FlipStoreApp is NULL");
-        return "Failed to fetch app list.";
-    }
-    return set_appropriate_list(model->fhttp, &app->submenu_app_list_category, app) ? "App list fetched successfully." : "Failed to fetch app list.";
-}
-static void flip_store_switch_to_app_list(FlipStoreApp *app)
-{
-    flip_store_generic_switch_to_view(app, categories[flip_store_category_index], flip_store_fetch_app_list, flip_store_parse_app_list, 1, callback_to_submenu, FlipStoreViewLoader);
-}
-//
 static bool flip_store_fetch_firmware(DataLoaderModel *model)
 {
     if (!model->fhttp)
@@ -813,6 +738,75 @@ uint32_t callback_exit_app(void *context)
     return VIEW_NONE; // Return VIEW_NONE to exit the app
 }
 
+static bool set_appropriate_list(FlipperHTTP *fhttp, FlipStoreApp *app)
+{
+    if (!fhttp || !app)
+    {
+        FURI_LOG_E(TAG, "FlipperHTTP oor app is NULL");
+        return false;
+    }
+
+    if (!easy_flipper_set_submenu(&app->submenu_app_list_category, FlipStoreViewAppListCategory, categories[flip_store_category_index], callback_to_app_list, &app->view_dispatcher))
+    {
+        FURI_LOG_E(TAG, "Failed to set submenu");
+        return false;
+    }
+    if (flip_store_process_app_list(fhttp) && app->submenu_app_list_category && flip_catalog)
+    {
+        submenu_reset(app->submenu_app_list_category);
+        submenu_set_header(app->submenu_app_list_category, categories[flip_store_category_index]);
+        // add each app name to submenu
+        for (int i = 0; i < MAX_APP_COUNT; i++)
+        {
+            if (strlen(flip_catalog[i].app_name) > 0)
+            {
+                submenu_add_item(app->submenu_app_list_category, flip_catalog[i].app_name, FlipStoreSubmenuIndexStartAppList + i, callback_submenu_choices, app);
+            }
+            else
+            {
+                break;
+            }
+        }
+        return true;
+    }
+    else
+    {
+        FURI_LOG_E(TAG, "Failed to process the app list");
+        return false;
+    }
+    return false;
+}
+
+static void fetch_appropiate_app_list(FlipStoreApp *app)
+{
+    FlipperHTTP *fhttp = flipper_http_alloc();
+    if (!fhttp)
+    {
+        FURI_LOG_E(TAG, "Failed to allocate FlipperHTTP");
+        return;
+    }
+    bool fetch_app_list()
+    {
+        fhttp->state = IDLE;
+        flip_catalog_free();
+        snprintf(
+            fhttp->file_path,
+            sizeof(fhttp->file_path),
+            STORAGE_EXT_PATH_PREFIX "/apps_data/flip_store/%s.json", categories[flip_store_category_index]);
+        fhttp->save_received_data = true;
+        fhttp->is_bytes_request = false;
+        char url[256];
+        snprintf(url, sizeof(url), "https://catalog.flipperzero.one/api/v0/0/application?limit=10&is_latest_release_version=true&offset=0&sort_by=updated_at&sort_order=-1&category_id=%s", category_ids[flip_store_category_index]);
+        return flipper_http_get_request_with_headers(fhttp, url, "{\"Content-Type\":\"application/json\"}");
+    }
+    bool parse_app_list()
+    {
+        return set_appropriate_list(fhttp, app);
+    }
+    flipper_http_loading_task(fhttp, fetch_app_list, parse_app_list, FlipStoreViewAppListCategory, FlipStoreViewSubmenuOptions, &app->view_dispatcher);
+    flipper_http_free(fhttp);
+}
+
 void callback_submenu_choices(void *context, uint32_t index)
 {
     FlipStoreApp *app = (FlipStoreApp *)context;
@@ -870,67 +864,67 @@ void callback_submenu_choices(void *context, uint32_t index)
         free_all_views(app, true);
         flip_store_category_index = 0;
         flip_store_app_does_exist = false;
-        flip_store_switch_to_app_list(app);
+        fetch_appropiate_app_list(app);
         break;
     case FlipStoreSubmenuIndexAppListGames:
         free_all_views(app, true);
         flip_store_category_index = 1;
         flip_store_app_does_exist = false;
-        flip_store_switch_to_app_list(app);
+        fetch_appropiate_app_list(app);
         break;
     case FlipStoreSubmenuIndexAppListGPIO:
         free_all_views(app, true);
         flip_store_category_index = 2;
         flip_store_app_does_exist = false;
-        flip_store_switch_to_app_list(app);
+        fetch_appropiate_app_list(app);
         break;
     case FlipStoreSubmenuIndexAppListInfrared:
         free_all_views(app, true);
         flip_store_category_index = 3;
         flip_store_app_does_exist = false;
-        flip_store_switch_to_app_list(app);
+        fetch_appropiate_app_list(app);
         break;
     case FlipStoreSubmenuIndexAppListiButton:
         free_all_views(app, true);
         flip_store_category_index = 4;
         flip_store_app_does_exist = false;
-        flip_store_switch_to_app_list(app);
+        fetch_appropiate_app_list(app);
         break;
     case FlipStoreSubmenuIndexAppListMedia:
         free_all_views(app, true);
         flip_store_category_index = 5;
         flip_store_app_does_exist = false;
-        flip_store_switch_to_app_list(app);
+        fetch_appropiate_app_list(app);
         break;
     case FlipStoreSubmenuIndexAppListNFC:
         free_all_views(app, true);
         flip_store_category_index = 6;
         flip_store_app_does_exist = false;
-        flip_store_switch_to_app_list(app);
+        fetch_appropiate_app_list(app);
         break;
     case FlipStoreSubmenuIndexAppListRFID:
         free_all_views(app, true);
         flip_store_category_index = 7;
         flip_store_app_does_exist = false;
-        flip_store_switch_to_app_list(app);
+        fetch_appropiate_app_list(app);
         break;
     case FlipStoreSubmenuIndexAppListSubGHz:
         free_all_views(app, true);
         flip_store_category_index = 8;
         flip_store_app_does_exist = false;
-        flip_store_switch_to_app_list(app);
+        fetch_appropiate_app_list(app);
         break;
     case FlipStoreSubmenuIndexAppListTools:
         free_all_views(app, true);
         flip_store_category_index = 9;
         flip_store_app_does_exist = false;
-        flip_store_switch_to_app_list(app);
+        fetch_appropiate_app_list(app);
         break;
     case FlipStoreSubmenuIndexAppListUSB:
         free_all_views(app, true);
         flip_store_category_index = 10;
         flip_store_app_does_exist = false;
-        flip_store_switch_to_app_list(app);
+        fetch_appropiate_app_list(app);
         break;
     default:
         // Check if the index is within the firmwares list range

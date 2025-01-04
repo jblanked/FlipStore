@@ -1,5 +1,8 @@
 ## v0.8
 - Updated FlipperHTTP to the latest library.
+- Switched to use Flipper catalog API.
+- Added an option to download Video Game Module firmware (FlipperHTTP)
+- Added an option to download Github repositories.
 
 ## v0.7.2
 - Final memory allocation improvements
