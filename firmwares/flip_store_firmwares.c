@@ -1,17 +1,7 @@
 #include <firmwares/flip_store_firmwares.h>
 
 Firmware *firmwares = NULL;
-bool sent_firmware_request = false;
-bool sent_firmware_request_2 = false;
-bool sent_firmware_request_3 = false;
-//
-bool firmware_request_success = false;
-bool firmware_request_success_2 = false;
-bool firmware_request_success_3 = false;
-//
-bool firmware_download_success = false;
-bool firmware_download_success_2 = false;
-bool firmware_download_success_3 = false;
+VGMFirmware *vgm_firmwares = NULL;
 
 Firmware *firmware_alloc()
 {
@@ -83,6 +73,14 @@ void firmware_free()
     {
         free(firmwares);
         firmwares = NULL;
+    }
+}
+void vg_firmware_free()
+{
+    if (vgm_firmwares)
+    {
+        free(vgm_firmwares);
+        vgm_firmwares = NULL;
     }
 }
 

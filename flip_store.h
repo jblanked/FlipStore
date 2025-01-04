@@ -30,8 +30,9 @@ typedef enum
     //
     FlipStoreSubmenuIndexOptions, // Click to view the options
     //
-    FlipStoreSubmenuIndexAppList,
-    FlipStoreSubmenuIndexFirmwares,
+    FlipStoreSubmenuIndexAppList,      // Click to view the app list
+    FlipStoreSubmenuIndexFirmwares,    // Click to view the ESP32 firmwares
+    FlipStoreSubmenuIndexVGMFirmwares, // Click to view the VGM firmwares
     //
     FlipStoreSubmenuIndexAppListBluetooth,
     FlipStoreSubmenuIndexAppListGames,
@@ -63,6 +64,7 @@ typedef enum
                                   //
     FlipStoreViewAppList,         // The app list screen
     FlipStoreViewFirmwares,       // The firmwares screen (submenu)
+    FlipStoreViewVGMFirmwares,    // The VGM firmwares screen (submenu)
     FlipStoreViewFirmwareDialog,  // The firmware view (DialogEx) of the selected firmware
                                   //
     FlipStoreViewAppInfo,         // The app info screen (widget) of the selected app
@@ -92,6 +94,7 @@ typedef struct
     Submenu *submenu_options;             // The submenu (options)
     Submenu *submenu_app_list;            // The submenu (app list) for the selected category
     Submenu *submenu_firmwares;           // The submenu (firmwares)
+    Submenu *submenu_vgm_firmwares;       // The submenu (VGM firmwares)
     Submenu *submenu_app_list_category;   // The submenu (app list) for each category
     Widget *widget_about;                 // The widget
     VariableItemList *variable_item_list; // The variable item list (settngs)

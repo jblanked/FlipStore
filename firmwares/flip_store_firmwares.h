@@ -11,21 +11,20 @@ typedef struct
     char *links[FIRMWARE_LINKS];
 } Firmware;
 
+typedef struct
+{
+    char *name;
+    char *link;
+} VGMFirmware;
+
 extern Firmware *firmwares;
+extern VGMFirmware *vgm_firmwares;
 Firmware *firmware_alloc();
+VGMFirmware *vgm_firmware_alloc();
 void firmware_free();
+void vgm_firmware_free();
 
 // download and waiting process
 bool flip_store_get_firmware_file(FlipperHTTP *fhttp, char *link, char *name, char *filename);
-
-extern bool sent_firmware_request;
-extern bool sent_firmware_request_2;
-extern bool sent_firmware_request_3;
-extern bool firmware_request_success;
-extern bool firmware_request_success_2;
-extern bool firmware_request_success_3;
-extern bool firmware_download_success;
-extern bool firmware_download_success_2;
-extern bool firmware_download_success_3;
 
 #endif // FLIP_STORE_FIRMWARES_H

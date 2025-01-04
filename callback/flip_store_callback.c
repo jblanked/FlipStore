@@ -53,30 +53,27 @@ static bool flip_store_fetch_firmware(DataLoaderModel *model)
         {
             return false;
         }
-        firmware_request_success = flip_store_get_firmware_file(
+        return flip_store_get_firmware_file(
             model->fhttp,
             firmwares[selected_firmware_index].links[0],
             firmwares[selected_firmware_index].name,
             strrchr(firmwares[selected_firmware_index].links[0], '/') + 1);
-        return firmware_request_success;
     }
     else if (model->request_index == 1)
     {
-        firmware_request_success_2 = flip_store_get_firmware_file(
+        return flip_store_get_firmware_file(
             model->fhttp,
             firmwares[selected_firmware_index].links[1],
             firmwares[selected_firmware_index].name,
             strrchr(firmwares[selected_firmware_index].links[1], '/') + 1);
-        return firmware_request_success_2;
     }
     else if (model->request_index == 2)
     {
-        firmware_request_success_3 = flip_store_get_firmware_file(
+        return flip_store_get_firmware_file(
             model->fhttp,
             firmwares[selected_firmware_index].links[2],
             firmwares[selected_firmware_index].name,
             strrchr(firmwares[selected_firmware_index].links[2], '/') + 1);
-        return firmware_request_success_3;
     }
     return false;
 }
@@ -84,24 +81,15 @@ static char *flip_store_parse_firmware(DataLoaderModel *model)
 {
     if (model->request_index == 0)
     {
-        if (firmware_request_success)
-        {
-            return "File 1 installed.";
-        }
+        return "File 1 installed.";
     }
     else if (model->request_index == 1)
     {
-        if (firmware_request_success_2)
-        {
-            return "File 2 installed.";
-        }
+        return "File 2 installed.";
     }
     else if (model->request_index == 2)
     {
-        if (firmware_request_success_3)
-        {
-            return "Firmware downloaded successfully";
-        }
+        return "Firmware downloaded successfully";
     }
     return "Failed to download firmware.";
 }
@@ -371,17 +359,6 @@ uint32_t callback_to_submenu(void *context)
 uint32_t callback_to_firmware_list(void *context)
 {
     UNUSED(context);
-    sent_firmware_request = false;
-    sent_firmware_request_2 = false;
-    sent_firmware_request_3 = false;
-    //
-    firmware_request_success = false;
-    firmware_request_success_2 = false;
-    firmware_request_success_3 = false;
-    //
-    firmware_download_success = false;
-    firmware_download_success_2 = false;
-    firmware_download_success_3 = false;
     return FlipStoreViewFirmwares;
 }
 static uint32_t callback_to_app_category_list(void *context)
