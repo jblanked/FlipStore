@@ -21,6 +21,9 @@
 #define FIRMWARE_COUNT 3
 #define FIRMWARE_LINKS 3
 
+#define VGM_FIRMWARE_COUNT 1
+#define VGM_FIRMWARE_LINKS 1
+
 // Define the submenu items for our FlipStore application
 typedef enum
 {
@@ -46,7 +49,8 @@ typedef enum
     FlipStoreSubmenuIndexAppListTools,
     FlipStoreSubmenuIndexAppListUSB,
     //
-    FlipStoreSubmenuIndexStartFirmwares,
+    FlipStoreSubmenuIndexStartFirmwares = 50,
+    FlipStoreSubmenuIndexStartVGMFirmwares = 60,
     //
     FlipStoreSubmenuIndexStartAppList = 100,
 } FlipStoreSubmenuIndex;

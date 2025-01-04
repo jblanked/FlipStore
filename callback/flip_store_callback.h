@@ -20,6 +20,7 @@ uint32_t callback_to_submenu(void *context);
 uint32_t callback_to_submenu_options(void *context);
 
 uint32_t callback_to_firmware_list(void *context);
+uint32_t callback_to_vgm_firmware_list(void *context);
 
 uint32_t callback_to_app_list(void *context);
 

@@ -3,6 +3,7 @@
 - Switched to use Flipper catalog API.
 - Added an option to download Video Game Module firmware (FlipperHTTP)
 - Added an option to download Github repositories.
+- Updated Marauder to the version 1.2
 
 ## v0.7.2
 - Final memory allocation improvements

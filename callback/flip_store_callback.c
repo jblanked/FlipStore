@@ -97,6 +97,40 @@ static void flip_store_switch_to_firmware_list(FlipStoreApp *app)
 {
     flip_store_generic_switch_to_view(app, firmwares[selected_firmware_index].name, flip_store_fetch_firmware, flip_store_parse_firmware, FIRMWARE_LINKS, callback_to_firmware_list, FlipStoreViewLoader);
 }
+//
+static bool flip_store_fetch_vgm_firmware(DataLoaderModel *model)
+{
+    if (!model->fhttp)
+    {
+        FURI_LOG_E(TAG, "FlipperHTTP is NULL");
+        return false;
+    }
+    model->fhttp->state = IDLE;
+    if (model->request_index == 0)
+    {
+        vgm_firmware_free();
+        vgm_firmwares = vgm_firmware_alloc();
+        if (!vgm_firmwares)
+        {
+            return false;
+        }
+        return flip_store_get_firmware_file(
+            model->fhttp,
+            vgm_firmwares[selected_firmware_index].link,
+            vgm_firmwares[selected_firmware_index].name,
+            strrchr(vgm_firmwares[selected_firmware_index].link, '/') + 1);
+    }
+    return false;
+}
+static char *flip_store_parse_vgm_firmware(DataLoaderModel *model)
+{
+    UNUSED(model);
+    return "Firmware downloaded successfully";
+}
+static void flip_store_switch_to_vgm_firmware_list(FlipStoreApp *app)
+{
+    flip_store_generic_switch_to_view(app, vgm_firmwares[selected_firmware_index].name, flip_store_fetch_vgm_firmware, flip_store_parse_vgm_firmware, 1, callback_to_vgm_firmware_list, FlipStoreViewLoader);
+}
 
 // Function to draw the message on the canvas with word wrapping
 static void draw_description(Canvas *canvas, const char *description, int x, int y)
@@ -361,6 +395,11 @@ uint32_t callback_to_firmware_list(void *context)
     UNUSED(context);
     return FlipStoreViewFirmwares;
 }
+uint32_t callback_to_vgm_firmware_list(void *context)
+{
+    UNUSED(context);
+    return FlipStoreViewVGMFirmwares;
+}
 static uint32_t callback_to_app_category_list(void *context)
 {
     UNUSED(context);
@@ -377,7 +416,6 @@ static uint32_t callback_to_wifi_settings(void *context)
     UNUSED(context);
     return FlipStoreViewSettings;
 }
-
 static void dialog_firmware_callback(DialogExResult result, void *context)
 {
     FlipStoreApp *app = (FlipStoreApp *)context;
@@ -389,12 +427,26 @@ static void dialog_firmware_callback(DialogExResult result, void *context)
     if (result == DialogExResultLeft) // No
     {
         // switch to the firmware list
-        view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewFirmwares);
+        if (is_esp32_firmware)
+        {
+            view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewFirmwares);
+        }
+        else
+        {
+            view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewVGMFirmwares);
+        }
     }
     else if (result == DialogExResultRight)
     {
         // download the firmware then return to the firmware list
-        flip_store_switch_to_firmware_list(app);
+        if (is_esp32_firmware)
+        {
+            flip_store_switch_to_firmware_list(app);
+        }
+        else
+        {
+            flip_store_switch_to_vgm_firmware_list(app);
+        }
     }
 }
 
@@ -597,7 +649,7 @@ static bool alloc_dialog_firmware(void *context)
         if (!easy_flipper_set_dialog_ex(
                 &app->dialog_firmware,
                 FlipStoreViewFirmwareDialog,
-                "Download Firmware",
+                is_esp32_firmware ? "Download ESP32 Firmware" : "Download VGM Firmware",
                 0,
                 0,
                 "Are you sure you want to\ndownload this firmware?",
@@ -617,7 +669,14 @@ static bool alloc_dialog_firmware(void *context)
         {
             return false;
         }
-        dialog_ex_set_header(app->dialog_firmware, firmwares[selected_firmware_index].name, 0, 0, AlignLeft, AlignTop);
+        if (is_esp32_firmware)
+        {
+            dialog_ex_set_header(app->dialog_firmware, firmwares[selected_firmware_index].name, 0, 0, AlignLeft, AlignTop);
+        }
+        else
+        {
+            dialog_ex_set_header(app->dialog_firmware, vgm_firmwares[selected_firmware_index].name, 0, 0, AlignLeft, AlignTop);
+        }
     }
     return true;
 }
@@ -702,6 +761,7 @@ void free_all_views(FlipStoreApp *app, bool should_free_variable_item_list)
     free_dialog_firmware(app);
     free_app_info_view(app);
     firmware_free();
+    vgm_firmware_free();
 }
 uint32_t callback_exit_app(void *context)
 {
@@ -817,7 +877,7 @@ void callback_submenu_choices(void *context, uint32_t index)
         flip_store_app_does_exist = false;
         view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewAppList);
         break;
-    case FlipStoreSubmenuIndexFirmwares:
+    case FlipStoreSubmenuIndexFirmwares: // esp32 firmwares
         firmwares = firmware_alloc();
         if (firmwares == NULL)
         {
@@ -831,6 +891,21 @@ void callback_submenu_choices(void *context, uint32_t index)
             submenu_add_item(app->submenu_firmwares, firmwares[i].name, FlipStoreSubmenuIndexStartFirmwares + i, callback_submenu_choices, app);
         }
         view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewFirmwares);
+        break;
+    case FlipStoreSubmenuIndexVGMFirmwares: // vgm firmwares
+        vgm_firmwares = vgm_firmware_alloc();
+        if (vgm_firmwares == NULL)
+        {
+            FURI_LOG_E(TAG, "Failed to allocate memory for vgm firmwares");
+            return;
+        }
+        submenu_reset(app->submenu_vgm_firmwares);
+        submenu_set_header(app->submenu_vgm_firmwares, "VGM Firmwares");
+        for (int i = 0; i < VGM_FIRMWARE_COUNT; i++)
+        {
+            submenu_add_item(app->submenu_vgm_firmwares, vgm_firmwares[i].name, FlipStoreSubmenuIndexStartVGMFirmwares + i, callback_submenu_choices, app);
+        }
+        view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewVGMFirmwares);
         break;
     case FlipStoreSubmenuIndexAppListBluetooth:
         free_all_views(app, true);
@@ -899,8 +974,8 @@ void callback_submenu_choices(void *context, uint32_t index)
         fetch_appropiate_app_list(app, 0);
         break;
     default:
-        // Check if the index is within the firmwares list range
-        if (index >= FlipStoreSubmenuIndexStartFirmwares && index < FlipStoreSubmenuIndexStartFirmwares + 3)
+        // Check if the index is within the ESP32 firmwares list range
+        if (index >= FlipStoreSubmenuIndexStartFirmwares && index < FlipStoreSubmenuIndexStartFirmwares + FIRMWARE_COUNT)
         {
             // Get the firmware index
             uint32_t firmware_index = index - FlipStoreSubmenuIndexStartFirmwares;
@@ -910,6 +985,35 @@ void callback_submenu_choices(void *context, uint32_t index)
             {
                 // Get the firmware name
                 selected_firmware_index = firmware_index;
+                is_esp32_firmware = true;
+
+                // Switch to the firmware download view
+                free_dialog_firmware(app);
+                if (!alloc_dialog_firmware(app))
+                {
+                    FURI_LOG_E(TAG, "Failed to allocate dialog firmware");
+                    return;
+                }
+                view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewFirmwareDialog);
+            }
+            else
+            {
+                FURI_LOG_E(TAG, "Invalid firmware index");
+                easy_flipper_dialog("Error", "Issue parsing firmware.");
+            }
+        }
+        // Check if the index is within the VGM firmwares list range
+        else if (index >= FlipStoreSubmenuIndexStartVGMFirmwares && index < FlipStoreSubmenuIndexStartVGMFirmwares + VGM_FIRMWARE_COUNT)
+        {
+            // Get the firmware index
+            uint32_t firmware_index = index - FlipStoreSubmenuIndexStartVGMFirmwares;
+
+            // Check if the firmware index is valid
+            if ((int)firmware_index >= 0 && firmware_index < VGM_FIRMWARE_COUNT)
+            {
+                // Get the firmware name
+                selected_firmware_index = firmware_index;
+                is_esp32_firmware = false;
 
                 // Switch to the firmware download view
                 free_dialog_firmware(app);

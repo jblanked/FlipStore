@@ -2,6 +2,7 @@
 
 Firmware *firmwares = NULL;
 VGMFirmware *vgm_firmwares = NULL;
+bool is_esp32_firmware = true;
 
 Firmware *firmware_alloc()
 {
@@ -11,62 +12,44 @@ Firmware *firmware_alloc()
         FURI_LOG_E(TAG, "Failed to allocate memory for Firmware");
         return NULL;
     }
-    for (int i = 0; i < FIRMWARE_COUNT; i++)
-    {
-        if (fw[i].name == NULL)
-        {
-            fw[i].name = (char *)malloc(16);
-            if (!fw[i].name)
-            {
-                FURI_LOG_E(TAG, "Failed to allocate memory for Firmware name");
-                return NULL;
-            }
-        }
-        for (int j = 0; j < FIRMWARE_LINKS; j++)
-        {
-            if (fw[i].links[j] == NULL)
-            {
-                fw[i].links[j] = (char *)malloc(256);
-                if (!fw[i].links[j])
-                {
-                    FURI_LOG_E(TAG, "Failed to allocate memory for Firmware links");
-                    return NULL;
-                }
-            }
-        }
-    }
 
     // Black Magic
-    fw[0].name = "Black Magic";
-    fw[0].links[0] = "https://raw.githubusercontent.com/FZEEFlasher/fzeeflasher.github.io/main/resources/STATIC/BM/bootloader.bin";
-    fw[0].links[1] = "https://raw.githubusercontent.com/FZEEFlasher/fzeeflasher.github.io/main/resources/STATIC/BM/partition-table.bin";
-    fw[0].links[2] = "https://raw.githubusercontent.com/FZEEFlasher/fzeeflasher.github.io/main/resources/STATIC/BM/blackmagic.bin";
+    snprintf(fw[0].name, sizeof(fw[0].name), "%s", "Black Magic");
+    snprintf(fw[0].links[0], sizeof(fw[0].links[0]), "%s", "https://raw.githubusercontent.com/FZEEFlasher/fzeeflasher.github.io/main/resources/STATIC/BM/bootloader.bin");
+    snprintf(fw[0].links[1], sizeof(fw[0].links[1]), "%s", "https://raw.githubusercontent.com/FZEEFlasher/fzeeflasher.github.io/main/resources/STATIC/BM/partition-table.bin");
+    snprintf(fw[0].links[2], sizeof(fw[0].links[2]), "%s", "https://raw.githubusercontent.com/FZEEFlasher/fzeeflasher.github.io/main/resources/STATIC/BM/blackmagic.bin");
 
     // FlipperHTTP
-    fw[1].name = "FlipperHTTP";
-    fw[1].links[0] = "https://raw.githubusercontent.com/jblanked/FlipperHTTP/main/WiFi%20Developer%20Board%20(ESP32S2)/flipper_http_bootloader.bin";
-    fw[1].links[1] = "https://raw.githubusercontent.com/jblanked/FlipperHTTP/main/WiFi%20Developer%20Board%20(ESP32S2)/flipper_http_firmware_a.bin";
-    fw[1].links[2] = "https://raw.githubusercontent.com/jblanked/FlipperHTTP/main/WiFi%20Developer%20Board%20(ESP32S2)/flipper_http_partitions.bin";
+    snprintf(fw[1].name, sizeof(fw[1].name), "%s", "FlipperHTTP");
+    snprintf(fw[1].links[0], sizeof(fw[1].links[0]), "%s", "https://raw.githubusercontent.com/jblanked/FlipperHTTP/main/WiFi%20Developer%20Board%20(ESP32S2)/flipper_http_bootloader.bin");
+    snprintf(fw[1].links[1], sizeof(fw[1].links[1]), "%s", "https://raw.githubusercontent.com/jblanked/FlipperHTTP/main/WiFi%20Developer%20Board%20(ESP32S2)/flipper_http_firmware_a.bin");
+    snprintf(fw[1].links[2], sizeof(fw[1].links[2]), "%s", "https://raw.githubusercontent.com/jblanked/FlipperHTTP/main/WiFi%20Developer%20Board%20(ESP32S2)/flipper_http_partitions.bin");
 
     // Marauder
-    fw[2].name = "Marauder";
-    fw[2].links[0] = "https://raw.githubusercontent.com/FZEEFlasher/fzeeflasher.github.io/main/resources/STATIC/M/FLIPDEV/esp32_marauder.ino.bootloader.bin";
-    fw[2].links[1] = "https://raw.githubusercontent.com/FZEEFlasher/fzeeflasher.github.io/main/resources/STATIC/M/FLIPDEV/esp32_marauder.ino.partitions.bin";
-    fw[2].links[2] = "https://raw.githubusercontent.com/FZEEFlasher/fzeeflasher.github.io/main/resources/CURRENT/esp32_marauder_v1_1_0_20241128_flipper.bin";
+    snprintf(fw[2].name, sizeof(fw[2].name), "%s", "Marauder");
+    snprintf(fw[2].links[0], sizeof(fw[2].links[0]), "%s", "https://raw.githubusercontent.com/FZEEFlasher/fzeeflasher.github.io/main/resources/STATIC/M/FLIPDEV/esp32_marauder.ino.bootloader.bin");
+    snprintf(fw[2].links[1], sizeof(fw[2].links[1]), "%s", "https://raw.githubusercontent.com/FZEEFlasher/fzeeflasher.github.io/main/resources/STATIC/M/FLIPDEV/esp32_marauder.ino.partitions.bin");
+    snprintf(fw[2].links[2], sizeof(fw[2].links[2]), "%s", "https://raw.githubusercontent.com/FZEEFlasher/fzeeflasher.github.io/main/resources/CURRENT/esp32_marauder_v1_2_0_12192024_flipper.bin");
 
-    // https://api.github.com/repos/FZEEFlasher/fzeeflasher.github.io/contents/resources/STATIC/BM/bootloader.bin
-    // https://api.github.com/repos/FZEEFlasher/fzeeflasher.github.io/contents/resources/STATIC/BM/partition-table.bin
-    // https://api.github.com/repos/FZEEFlasher/fzeeflasher.github.io/contents/resources/STATIC/BM/blackmagic.bin
-
-    // https://api.github.com/repos/jblanked/FlipperHTTP/contents/flipper_http_bootloader.bin
-    // https://api.github.com/repos/jblanked/FlipperHTTP/contents/flipper_http_firmware_a.bin
-    // https://api.github.com/repos/jblanked/FlipperHTTP/contents/flipper_http_partitions.bin
-
-    // https://api.github.com/repos/FZEEFlasher/fzeeflasher.github.io/contents/resources/STATIC/M/FLIPDEV/esp32_marauder.ino.bootloader.bin
-    // https://api.github.com/repos/FZEEFlasher/fzeeflasher.github.io/contents/resources/STATIC/M/FLIPDEV/esp32_marauder.ino.partitions.bin
-    // https://api.github.com/repos/FZEEFlasher/fzeeflasher.github.io/contents/resources/CURRENT/esp32_marauder_v1_0_0_20240626_flipper.bin
     return fw;
 }
+
+VGMFirmware *vgm_firmware_alloc()
+{
+    VGMFirmware *fw = (VGMFirmware *)malloc(VGM_FIRMWARE_COUNT * sizeof(VGMFirmware));
+    if (!fw)
+    {
+        FURI_LOG_E(TAG, "Failed to allocate memory for VGM Firmware");
+        return NULL;
+    }
+
+    // FlipperHTTP
+    snprintf(fw[0].name, sizeof(fw[0].name), "%s", "FlipperHTTP");
+    snprintf(fw[0].link, sizeof(fw[0].link), "%s", "https://raw.githubusercontent.com/jblanked/FlipperHTTP/main/Video%20Game%20Module/MicroPython/flipper_http_vgm_micro_python.uf2");
+
+    return fw;
+}
+
 void firmware_free()
 {
     if (firmwares)
@@ -75,7 +58,7 @@ void firmware_free()
         firmwares = NULL;
     }
 }
-void vg_firmware_free()
+void vgm_firmware_free()
 {
     if (vgm_firmwares)
     {
@@ -95,13 +78,27 @@ bool flip_store_get_firmware_file(FlipperHTTP *fhttp, char *link, char *name, ch
     {
         return false;
     }
+
     Storage *storage = furi_record_open(RECORD_STORAGE);
+
     char directory_path[64];
-    snprintf(directory_path, sizeof(directory_path), STORAGE_EXT_PATH_PREFIX "/apps_data/esp_flasher");
-    storage_common_mkdir(storage, directory_path);
-    snprintf(directory_path, sizeof(directory_path), STORAGE_EXT_PATH_PREFIX "/apps_data/esp_flasher/%s", firmwares[selected_firmware_index].name);
-    storage_common_mkdir(storage, directory_path);
-    snprintf(fhttp->file_path, sizeof(fhttp->file_path), STORAGE_EXT_PATH_PREFIX "/apps_data/esp_flasher/%s/%s", name, filename);
+    // save in ESP32 flasher directory
+    if (is_esp32_firmware)
+    {
+        snprintf(directory_path, sizeof(directory_path), STORAGE_EXT_PATH_PREFIX "/apps_data/esp_flasher");
+        storage_common_mkdir(storage, directory_path);
+        snprintf(directory_path, sizeof(directory_path), STORAGE_EXT_PATH_PREFIX "/apps_data/esp_flasher/%s", firmwares[selected_firmware_index].name);
+        storage_common_mkdir(storage, directory_path);
+        snprintf(fhttp->file_path, sizeof(fhttp->file_path), STORAGE_EXT_PATH_PREFIX "/apps_data/esp_flasher/%s/%s", name, filename);
+    }
+    else // install in app_data directory
+    {
+        snprintf(directory_path, sizeof(directory_path), STORAGE_EXT_PATH_PREFIX "/apps_data/vgm");
+        storage_common_mkdir(storage, directory_path);
+        snprintf(directory_path, sizeof(directory_path), STORAGE_EXT_PATH_PREFIX "/apps_data/vgm/%s", name);
+        storage_common_mkdir(storage, directory_path);
+        snprintf(fhttp->file_path, sizeof(fhttp->file_path), STORAGE_EXT_PATH_PREFIX "/apps_data/vgm/%s/%s", name, filename);
+    }
     furi_record_close(RECORD_STORAGE);
     fhttp->save_received_data = false;
     fhttp->is_bytes_request = true;

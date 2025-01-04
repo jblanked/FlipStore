@@ -7,14 +7,14 @@
 
 typedef struct
 {
-    char *name;
-    char *links[FIRMWARE_LINKS];
+    char name[16];
+    char links[FIRMWARE_LINKS][256];
 } Firmware;
 
 typedef struct
 {
-    char *name;
-    char *link;
+    char name[16];
+    char link[256];
 } VGMFirmware;
 
 extern Firmware *firmwares;
@@ -23,6 +23,7 @@ Firmware *firmware_alloc();
 VGMFirmware *vgm_firmware_alloc();
 void firmware_free();
 void vgm_firmware_free();
+extern bool is_esp32_firmware;
 
 // download and waiting process
 bool flip_store_get_firmware_file(FlipperHTTP *fhttp, char *link, char *name, char *filename);

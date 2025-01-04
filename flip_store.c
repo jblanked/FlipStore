@@ -46,6 +46,11 @@ void flip_store_app_free(FlipStoreApp *app)
         view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewFirmwares);
         submenu_free(app->submenu_firmwares);
     }
+    if (app->submenu_vgm_firmwares)
+    {
+        view_dispatcher_remove_view(app->view_dispatcher, FlipStoreViewVGMFirmwares);
+        submenu_free(app->submenu_vgm_firmwares);
+    }
 
     free_all_views(app, true);
 

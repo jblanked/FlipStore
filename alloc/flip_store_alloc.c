@@ -38,7 +38,11 @@ FlipStoreApp *flip_store_app_alloc()
     {
         return NULL;
     }
-    if (!easy_flipper_set_submenu(&app->submenu_firmwares, FlipStoreViewFirmwares, "ESP32 Firmwares", callback_to_submenu_options, &app->view_dispatcher))
+    if (!easy_flipper_set_submenu(&app->submenu_firmwares, FlipStoreViewFirmwares, "ESP32 Firmware", callback_to_submenu_options, &app->view_dispatcher))
+    {
+        return NULL;
+    }
+    if (!easy_flipper_set_submenu(&app->submenu_vgm_firmwares, FlipStoreViewVGMFirmwares, "VGM Firmware", callback_to_submenu_options, &app->view_dispatcher))
     {
         return NULL;
     }
