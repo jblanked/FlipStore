@@ -4,6 +4,7 @@ FlipStoreAppInfo *flip_catalog = NULL;
 
 uint32_t app_selected_index = 0;
 uint32_t flip_store_category_index = 0;
+int catalog_iteration = 0;
 
 // define the list of categories
 char *category_ids[] = {
@@ -48,6 +49,7 @@ FlipStoreAppInfo *flip_catalog_alloc()
         return NULL;
     }
     app_catalog->count = 0;
+    app_catalog->iteration = catalog_iteration;
     return app_catalog;
 }
 
@@ -100,7 +102,7 @@ bool flip_store_process_app_list(FlipperHTTP *fhttp)
     furi_string_free(feed_data);
     furi_string_cat_str(json_data_str, "}");
 
-    int app_count = 0;
+    flip_catalog->count = 0;
 
     // parse the JSON data
     for (int i = 0; i < MAX_APP_COUNT; i++)
@@ -173,13 +175,13 @@ bool flip_store_process_app_list(FlipperHTTP *fhttp)
         snprintf(flip_catalog[i].app_build_id, MAX_ID_LENGTH, "%s", furi_string_get_cstr(_id));
         furi_string_free(_id);
 
-        app_count++;
+        flip_catalog->count++;
         furi_string_free(json_data_array);
         furi_string_free(current_version);
     }
 
     furi_string_free(json_data_str);
-    return app_count > 0;
+    return flip_catalog->count > 0;
 }
 
 static bool flip_store_get_fap_file(FlipperHTTP *fhttp, char *build_id, uint8_t target, uint16_t api_major, uint16_t api_minor)

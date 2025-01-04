@@ -751,7 +751,7 @@ static bool set_appropriate_list(FlipperHTTP *fhttp, FlipStoreApp *app)
         submenu_reset(app->submenu_app_list_category);
         submenu_set_header(app->submenu_app_list_category, categories[flip_store_category_index]);
         // add each app name to submenu
-        for (int i = 0; i < MAX_APP_COUNT; i++)
+        for (size_t i = 0; i < flip_catalog->count; i++)
         {
             if (strlen(flip_catalog[i].app_name) > 0)
             {
@@ -762,6 +762,8 @@ static bool set_appropriate_list(FlipperHTTP *fhttp, FlipStoreApp *app)
                 break;
             }
         }
+        // add [LOAD NEXT] to submenu
+        submenu_add_item(app->submenu_app_list_category, "[LOAD NEXT]", FlipStoreSubmenuIndexStartAppList + flip_catalog->count, callback_submenu_choices, app);
         return true;
     }
     FURI_LOG_E(TAG, "Failed to process the app list");
@@ -948,13 +950,13 @@ void callback_submenu_choices(void *context, uint32_t index)
             }
         }
         // Check if the index is within the app list range
-        else if (index >= FlipStoreSubmenuIndexStartAppList && index < FlipStoreSubmenuIndexStartAppList + MAX_APP_COUNT)
+        else if (index >= FlipStoreSubmenuIndexStartAppList && index < FlipStoreSubmenuIndexStartAppList + flip_catalog->count)
         {
             // Get the app index
             uint32_t app_index = index - FlipStoreSubmenuIndexStartAppList;
 
             // Check if the app index is valid
-            if ((int)app_index >= 0 && app_index < MAX_APP_COUNT)
+            if ((int)app_index >= 0 && app_index < flip_catalog->count)
             {
                 // Get the app name
                 char *app_name = flip_catalog[app_index].app_name;
@@ -981,6 +983,15 @@ void callback_submenu_choices(void *context, uint32_t index)
             {
                 FURI_LOG_E(TAG, "Invalid app index");
             }
+        }
+        // Check if the index is for loading the next set of apps
+        else if (index == FlipStoreSubmenuIndexStartAppList + flip_catalog->count)
+        {
+            catalog_iteration = flip_catalog->iteration + 8;
+            view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewWidgetResult);
+            free_category_submenu(app);
+            flip_catalog_free();
+            fetch_appropiate_app_list(app, catalog_iteration);
         }
         else
         {

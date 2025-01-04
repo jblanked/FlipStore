@@ -15,6 +15,7 @@
 // define the list of categories
 extern char *category_ids[];
 extern char *categories[];
+extern int catalog_iteration;
 
 typedef struct
 {
@@ -23,7 +24,8 @@ typedef struct
     char app_build_id[MAX_ID_LENGTH];
     char app_version[MAX_APP_VERSION_LENGTH];
     char app_description[MAX_APP_DESCRIPTION_LENGTH];
-    int count;
+    size_t count;
+    int iteration;
 } FlipStoreAppInfo;
 
 extern FlipStoreAppInfo *flip_catalog;
