@@ -3,10 +3,6 @@
 FlipStoreAppInfo *flip_catalog = NULL;
 
 uint32_t app_selected_index = 0;
-bool flip_store_sent_request = false;
-bool flip_store_success = false;
-bool flip_store_saved_data = false;
-bool flip_store_saved_success = false;
 uint32_t flip_store_category_index = 0;
 
 // define the list of categories
@@ -51,7 +47,7 @@ FlipStoreAppInfo *flip_catalog_alloc()
         FURI_LOG_E(TAG, "Failed to allocate memory for flip_catalog.");
         return NULL;
     }
-    // No need for a loop since all memory is allocated in one block
+    app_catalog->count = 0;
     return app_catalog;
 }
 
@@ -186,20 +182,14 @@ bool flip_store_process_app_list(FlipperHTTP *fhttp)
     return app_count > 0;
 }
 
-bool flip_store_get_fap_file(FlipperHTTP *fhttp, char *build_id, uint8_t target, uint16_t api_major, uint16_t api_minor)
+static bool flip_store_get_fap_file(FlipperHTTP *fhttp, char *build_id, uint8_t target, uint16_t api_major, uint16_t api_minor)
 {
-    if (!fhttp)
+    if (!fhttp || !build_id)
     {
-        FURI_LOG_E(TAG, "FlipperHTTP is NULL.");
+        FURI_LOG_E(TAG, "FlipperHTTP or build_id is NULL.");
         return false;
     }
-    if (!build_id)
-    {
-        FURI_LOG_E(TAG, "Build ID is NULL.");
-        return false;
-    }
-    fhttp->state = IDLE;
-    char url[128];
+    char url[256];
     fhttp->save_received_data = false;
     fhttp->is_bytes_request = true;
     snprintf(url, sizeof(url), "https://catalog.flipperzero.one/api/v0/application/version/%s/build/compatible?target=f%d&api=%d.%d", build_id, target, api_major, api_minor);
@@ -208,34 +198,14 @@ bool flip_store_get_fap_file(FlipperHTTP *fhttp, char *build_id, uint8_t target,
 
 bool flip_store_install_app(FlipperHTTP *fhttp, char *category)
 {
-    if (!fhttp)
+    if (!fhttp || !category)
     {
-        FURI_LOG_E(TAG, "FlipperHTTP is NULL.");
+        FURI_LOG_E(TAG, "FlipperHTTP or category is NULL.");
         return false;
     }
-    // create /apps/FlipStore directory if it doesn't exist
-    char directory_path[128];
-    snprintf(directory_path, sizeof(directory_path), STORAGE_EXT_PATH_PREFIX "/apps/%s", category);
-
-    // Create the directory
-    Storage *storage = furi_record_open(RECORD_STORAGE);
-    storage_common_mkdir(storage, directory_path);
-    furi_record_close(RECORD_STORAGE);
-
     snprintf(fhttp->file_path, sizeof(fhttp->file_path), STORAGE_EXT_PATH_PREFIX "/apps/%s/%s.fap", category, flip_catalog[app_selected_index].app_id);
-
     uint8_t target = furi_hal_version_get_hw_target();
     uint16_t api_major, api_minor;
     furi_hal_info_get_api_version(&api_major, &api_minor);
-    if (fhttp->state != INACTIVE && flip_store_get_fap_file(fhttp, flip_catalog[app_selected_index].app_build_id, target, api_major, api_minor))
-    {
-        fhttp->state = RECEIVING;
-        return true;
-    }
-    else
-    {
-        FURI_LOG_E(TAG, "Failed to send the request");
-        flip_store_success = false;
-        return false;
-    }
+    return flip_store_get_fap_file(fhttp, flip_catalog[app_selected_index].app_build_id, target, api_major, api_minor);
 }

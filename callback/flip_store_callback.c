@@ -392,12 +392,6 @@ static uint32_t callback_to_app_category_list(void *context)
 uint32_t callback_to_app_list(void *context)
 {
     UNUSED(context);
-    flip_store_sent_request = false;
-    flip_store_success = false;
-    flip_store_saved_data = false;
-    flip_store_saved_success = false;
-    flip_store_app_does_exist = false;
-    sent_firmware_request = false;
     return FlipStoreViewAppList;
 }
 
@@ -751,6 +745,7 @@ static bool set_appropriate_list(FlipperHTTP *fhttp, FlipStoreApp *app)
         FURI_LOG_E(TAG, "Failed to set submenu");
         return false;
     }
+
     if (flip_store_process_app_list(fhttp) && app->submenu_app_list_category && flip_catalog)
     {
         submenu_reset(app->submenu_app_list_category);
@@ -769,11 +764,7 @@ static bool set_appropriate_list(FlipperHTTP *fhttp, FlipStoreApp *app)
         }
         return true;
     }
-    else
-    {
-        FURI_LOG_E(TAG, "Failed to process the app list");
-        return false;
-    }
+    FURI_LOG_E(TAG, "Failed to process the app list");
     return false;
 }
 
