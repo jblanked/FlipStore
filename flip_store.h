@@ -36,6 +36,7 @@ typedef enum
     FlipStoreSubmenuIndexAppList,      // Click to view the app list
     FlipStoreSubmenuIndexFirmwares,    // Click to view the ESP32 firmwares
     FlipStoreSubmenuIndexVGMFirmwares, // Click to view the VGM firmwares
+    FlipStoreSubmenuIndexGitHub,       // Click to view the GitHub repository view
     //
     FlipStoreSubmenuIndexAppListBluetooth,
     FlipStoreSubmenuIndexAppListGames,
@@ -69,6 +70,8 @@ typedef enum
     FlipStoreViewAppList,         // The app list screen
     FlipStoreViewFirmwares,       // The firmwares screen (submenu)
     FlipStoreViewVGMFirmwares,    // The VGM firmwares screen (submenu)
+    FlipStoreViewAGithub,         // The GitHub repository screen
+                                  //
     FlipStoreViewFirmwareDialog,  // The firmware view (DialogEx) of the selected firmware
                                   //
     FlipStoreViewAppInfo,         // The app info screen (widget) of the selected app
