@@ -777,7 +777,8 @@ static bool set_appropriate_list(FlipperHTTP *fhttp, FlipStoreApp *app)
     return false;
 }
 
-static void fetch_appropiate_app_list(FlipStoreApp *app)
+// we'll have to loop 8 at a time due to memory constraints
+static void fetch_appropiate_app_list(FlipStoreApp *app, int iteration)
 {
     FlipperHTTP *fhttp = flipper_http_alloc();
     if (!fhttp)
@@ -796,7 +797,8 @@ static void fetch_appropiate_app_list(FlipStoreApp *app)
         fhttp->save_received_data = true;
         fhttp->is_bytes_request = false;
         char url[256];
-        snprintf(url, sizeof(url), "https://catalog.flipperzero.one/api/v0/0/application?limit=10&is_latest_release_version=true&offset=0&sort_by=updated_at&sort_order=-1&category_id=%s", category_ids[flip_store_category_index]);
+        // load 8 at a time
+        snprintf(url, sizeof(url), "https://catalog.flipperzero.one/api/v0/0/application?limit=8&is_latest_release_version=true&offset=%d&sort_by=updated_at&sort_order=-1&category_id=%s", iteration, category_ids[flip_store_category_index]);
         return flipper_http_get_request_with_headers(fhttp, url, "{\"Content-Type\":\"application/json\"}");
     }
     bool parse_app_list()
@@ -864,67 +866,67 @@ void callback_submenu_choices(void *context, uint32_t index)
         free_all_views(app, true);
         flip_store_category_index = 0;
         flip_store_app_does_exist = false;
-        fetch_appropiate_app_list(app);
+        fetch_appropiate_app_list(app, 0);
         break;
     case FlipStoreSubmenuIndexAppListGames:
         free_all_views(app, true);
         flip_store_category_index = 1;
         flip_store_app_does_exist = false;
-        fetch_appropiate_app_list(app);
+        fetch_appropiate_app_list(app, 0);
         break;
     case FlipStoreSubmenuIndexAppListGPIO:
         free_all_views(app, true);
         flip_store_category_index = 2;
         flip_store_app_does_exist = false;
-        fetch_appropiate_app_list(app);
+        fetch_appropiate_app_list(app, 0);
         break;
     case FlipStoreSubmenuIndexAppListInfrared:
         free_all_views(app, true);
         flip_store_category_index = 3;
         flip_store_app_does_exist = false;
-        fetch_appropiate_app_list(app);
+        fetch_appropiate_app_list(app, 0);
         break;
     case FlipStoreSubmenuIndexAppListiButton:
         free_all_views(app, true);
         flip_store_category_index = 4;
         flip_store_app_does_exist = false;
-        fetch_appropiate_app_list(app);
+        fetch_appropiate_app_list(app, 0);
         break;
     case FlipStoreSubmenuIndexAppListMedia:
         free_all_views(app, true);
         flip_store_category_index = 5;
         flip_store_app_does_exist = false;
-        fetch_appropiate_app_list(app);
+        fetch_appropiate_app_list(app, 0);
         break;
     case FlipStoreSubmenuIndexAppListNFC:
         free_all_views(app, true);
         flip_store_category_index = 6;
         flip_store_app_does_exist = false;
-        fetch_appropiate_app_list(app);
+        fetch_appropiate_app_list(app, 0);
         break;
     case FlipStoreSubmenuIndexAppListRFID:
         free_all_views(app, true);
         flip_store_category_index = 7;
         flip_store_app_does_exist = false;
-        fetch_appropiate_app_list(app);
+        fetch_appropiate_app_list(app, 0);
         break;
     case FlipStoreSubmenuIndexAppListSubGHz:
         free_all_views(app, true);
         flip_store_category_index = 8;
         flip_store_app_does_exist = false;
-        fetch_appropiate_app_list(app);
+        fetch_appropiate_app_list(app, 0);
         break;
     case FlipStoreSubmenuIndexAppListTools:
         free_all_views(app, true);
         flip_store_category_index = 9;
         flip_store_app_does_exist = false;
-        fetch_appropiate_app_list(app);
+        fetch_appropiate_app_list(app, 0);
         break;
     case FlipStoreSubmenuIndexAppListUSB:
         free_all_views(app, true);
         flip_store_category_index = 10;
         flip_store_app_does_exist = false;
-        fetch_appropiate_app_list(app);
+        fetch_appropiate_app_list(app, 0);
         break;
     default:
         // Check if the index is within the firmwares list range

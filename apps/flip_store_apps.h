@@ -8,7 +8,7 @@
 // Define maximum limits
 #define MAX_APP_NAME_LENGTH 32
 #define MAX_ID_LENGTH 32
-#define MAX_APP_COUNT 100
+#define MAX_APP_COUNT 50
 #define MAX_APP_DESCRIPTION_LENGTH 100
 #define MAX_APP_VERSION_LENGTH 5
 

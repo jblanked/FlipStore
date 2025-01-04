@@ -40,6 +40,11 @@ char *categories[] = {
 
 FlipStoreAppInfo *flip_catalog_alloc()
 {
+    if (memmgr_get_free_heap() < MAX_APP_COUNT * sizeof(FlipStoreAppInfo))
+    {
+        FURI_LOG_E(TAG, "Not enough memory to allocate flip_catalog.");
+        return NULL;
+    }
     FlipStoreAppInfo *app_catalog = malloc(MAX_APP_COUNT * sizeof(FlipStoreAppInfo));
     if (!app_catalog)
     {
@@ -87,8 +92,14 @@ bool flip_store_process_app_list(FlipperHTTP *fhttp)
         FURI_LOG_E("Game", "Failed to allocate json_data string");
         return NULL;
     }
-
     furi_string_cat_str(json_data_str, "{\"json_data\":");
+    if (memmgr_get_free_heap() < furi_string_size(feed_data) + furi_string_size(json_data_str) + 2)
+    {
+        FURI_LOG_E(TAG, "Not enough memory to allocate json_data_str.");
+        furi_string_free(feed_data);
+        furi_string_free(json_data_str);
+        return false;
+    }
     furi_string_cat(json_data_str, feed_data);
     furi_string_free(feed_data);
     furi_string_cat_str(json_data_str, "}");
@@ -101,14 +112,14 @@ bool flip_store_process_app_list(FlipperHTTP *fhttp)
         FuriString *json_data_array = get_json_array_value_furi("json_data", i, json_data_str);
         if (!json_data_array)
         {
-            FURI_LOG_I(TAG, "No more apps to process, i = %d", i);
             break;
         }
 
-        FuriString *app_id = get_json_value_furi("alias", json_data_array); // app_id is stored in the "alias" field
+        FuriString *app_id = get_json_value_furi("alias", json_data_array);
         if (!app_id)
         {
             FURI_LOG_E(TAG, "Failed to get app_id.");
+            furi_string_free(json_data_array);
             break;
         }
         snprintf(flip_catalog[i].app_id, MAX_ID_LENGTH, "%s", furi_string_get_cstr(app_id));
@@ -118,6 +129,7 @@ bool flip_store_process_app_list(FlipperHTTP *fhttp)
         if (!current_version)
         {
             FURI_LOG_E(TAG, "Failed to get current_version.");
+            furi_string_free(json_data_array);
             break;
         }
 
@@ -125,6 +137,8 @@ bool flip_store_process_app_list(FlipperHTTP *fhttp)
         if (!app_name)
         {
             FURI_LOG_E(TAG, "Failed to get app_name.");
+            furi_string_free(json_data_array);
+            furi_string_free(current_version);
             break;
         }
         snprintf(flip_catalog[i].app_name, MAX_APP_NAME_LENGTH, "%s", furi_string_get_cstr(app_name));
@@ -134,6 +148,8 @@ bool flip_store_process_app_list(FlipperHTTP *fhttp)
         if (!app_description)
         {
             FURI_LOG_E(TAG, "Failed to get app_description.");
+            furi_string_free(json_data_array);
+            furi_string_free(current_version);
             break;
         }
         snprintf(flip_catalog[i].app_description, MAX_APP_DESCRIPTION_LENGTH, "%s", furi_string_get_cstr(app_description));
@@ -143,6 +159,8 @@ bool flip_store_process_app_list(FlipperHTTP *fhttp)
         if (!app_version)
         {
             FURI_LOG_E(TAG, "Failed to get app_version.");
+            furi_string_free(json_data_array);
+            furi_string_free(current_version);
             break;
         }
         snprintf(flip_catalog[i].app_version, MAX_APP_VERSION_LENGTH, "%s", furi_string_get_cstr(app_version));
@@ -152,6 +170,8 @@ bool flip_store_process_app_list(FlipperHTTP *fhttp)
         if (!_id)
         {
             FURI_LOG_E(TAG, "Failed to get _id.");
+            furi_string_free(json_data_array);
+            furi_string_free(current_version);
             break;
         }
         snprintf(flip_catalog[i].app_build_id, MAX_ID_LENGTH, "%s", furi_string_get_cstr(_id));
