@@ -438,13 +438,17 @@ static char *flip_store_parse_github(DataLoaderModel *model)
         {
             return "Failed to parse Github contents";
         }
-        return "Repository contents fetched...";
+        if (!flip_store_install_all_github_files(model->fhttp, author, repo))
+        {
+            return "Failed to install all Github files";
+        }
+        return "Repository downloaded successfully";
     }
     return "Failed to download repository.";
 }
 static void flip_store_github_switch_to_view(FlipStoreApp *app)
 {
-    flip_store_generic_switch_to_view(app, "Downloading Repository..", flip_store_fetch_github, flip_store_parse_github, 1, callback_to_submenu_options, FlipStoreViewLoader);
+    flip_store_generic_switch_to_view(app, "Downloading Repository..", flip_store_fetch_github, flip_store_parse_github, 2, callback_to_submenu_options, FlipStoreViewLoader);
 }
 static void flip_store_text_updated_repo(void *context)
 {

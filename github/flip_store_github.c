@@ -52,6 +52,14 @@ bool flip_store_get_github_contents(FlipperHTTP *fhttp, const char *author, cons
     snprintf(dir, sizeof(dir), STORAGE_EXT_PATH_PREFIX "/apps_data/flip_store/data/%s/%s", author, repo);
     storage_common_mkdir(storage, dir);
 
+    // example path: /ext/apps_data/flip_store/author
+    snprintf(dir, sizeof(dir), STORAGE_EXT_PATH_PREFIX "/apps_data/flip_store/%s", author);
+    storage_common_mkdir(storage, dir);
+
+    // example path: /ext/apps_data/flip_store/author/repo
+    snprintf(dir, sizeof(dir), STORAGE_EXT_PATH_PREFIX "/apps_data/flip_store/%s/%s", author, repo);
+    storage_common_mkdir(storage, dir);
+
     furi_record_close(RECORD_STORAGE);
 
     // get the contents of the repo
@@ -136,7 +144,6 @@ bool flip_store_parse_github_contents(char *file_path, const char *author, const
         {
             FURI_LOG_E(TAG, "Failed to allocate json.");
 
-            furi_string_free(json_data_array);
             furi_string_free(download_url);
             furi_string_free(name);
             break;
@@ -153,7 +160,7 @@ bool flip_store_parse_github_contents(char *file_path, const char *author, const
 
         // save the json to the data folder: /ext/apps_data/flip_store/data/author/repo
         char dir[256];
-        snprintf(dir, sizeof(dir), STORAGE_EXT_PATH_PREFIX "/apps_data/flip_store/data/%s/%s/%s.json", author, repo, furi_string_get_cstr(name));
+        snprintf(dir, sizeof(dir), STORAGE_EXT_PATH_PREFIX "/apps_data/flip_store/data/%s/%s/file%d.json", author, repo, file_count);
         if (!save_char_with_path(dir, furi_string_get_cstr(json)))
         {
             FURI_LOG_E(TAG, "Failed to save json.");
@@ -171,4 +178,65 @@ bool flip_store_parse_github_contents(char *file_path, const char *author, const
     char file_count_dir[256]; // /ext/apps_data/flip_store/data/author/file_count.txt
     snprintf(file_count_dir, sizeof(file_count_dir), STORAGE_EXT_PATH_PREFIX "/apps_data/flip_store/data/%s/file_count.txt", author);
     return save_char_with_path(file_count_dir, file_count_str);
+}
+
+bool flip_store_install_all_github_files(FlipperHTTP *fhttp, const char *author, const char *repo)
+{
+    if (!fhttp)
+    {
+        FURI_LOG_E(TAG, "FlipperHTTP is NULL");
+        return false;
+    }
+    // get the file count
+    char file_count_dir[256]; // /ext/apps_data/flip_store/data/author/file_count.txt
+    snprintf(file_count_dir, sizeof(file_count_dir), STORAGE_EXT_PATH_PREFIX "/apps_data/flip_store/data/%s/file_count.txt", author);
+    FuriString *file_count = flipper_http_load_from_file(file_count_dir);
+    if (file_count == NULL)
+    {
+        FURI_LOG_E(TAG, "Failed to load file count.");
+        return false;
+    }
+    int count = atoi(furi_string_get_cstr(file_count));
+    furi_string_free(file_count);
+
+    // install all files
+    for (int i = 0; i < count; i++)
+    {
+        char file_dir[256]; // /ext/apps_data/flip_store/data/author/repo/file.json
+        snprintf(file_dir, sizeof(file_dir), STORAGE_EXT_PATH_PREFIX "/apps_data/flip_store/data/%s/%s/file%d.json", author, repo, i);
+        FuriString *file = flipper_http_load_from_file(file_dir);
+        if (file == NULL)
+        {
+            FURI_LOG_E(TAG, "Failed to load file.");
+            return false;
+        }
+        FuriString *name = get_json_value_furi("name", file);
+        if (!name)
+        {
+            FURI_LOG_E(TAG, "Failed to get name.");
+            furi_string_free(file);
+            return false;
+        }
+        FuriString *link = get_json_value_furi("link", file);
+        if (!link)
+        {
+            FURI_LOG_E(TAG, "Failed to get link.");
+            furi_string_free(file);
+            furi_string_free(name);
+            return false;
+        }
+        furi_string_free(file);
+
+        // download the file
+        if (!flip_store_download_github_file(fhttp, furi_string_get_cstr(name), author, repo, furi_string_get_cstr(link)))
+        {
+            FURI_LOG_E(TAG, "Failed to download file.");
+            furi_string_free(name);
+            furi_string_free(link);
+            return false;
+        }
+        furi_string_free(name);
+        furi_string_free(link);
+    }
+    return true;
 }
