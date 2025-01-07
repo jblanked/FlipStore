@@ -5,8 +5,9 @@ Download Flipper Zero apps directly to your Flipper Zero using WiFi. You no long
 - App Catalog
 - Install Apps
 - Delete Apps 
-- Install Developer Board Flashes
-- Install Custom Apps (coming soon)
+- Install WiFi Developer Board Firmware
+- Install Video Game Module Firmware
+- Install GitHub Repositories (Beta)
 - Install Official Firmware (coming soon)
 
 ## Installation
@@ -38,7 +39,7 @@ Download Flipper Zero apps directly to your Flipper Zero using WiFi. You no long
 - UX Improvements
 
 **v0.8**
-- Download custom apps/assets from a GitHub URL
+- Download GitHub repositories
 
 **1.0**
-- Download Official Firmware/Firmware Updates
+- Download Official Flipper Zero Firmware
