@@ -288,6 +288,7 @@ bool flip_store_install_all_github_files(FlipperHTTP *fhttp, const char *author,
         FURI_LOG_E(TAG, "Invalid arguments.");
         return false;
     }
+    fhttp->state = RECEIVING;
     // get the file count
     char file_count_dir[256]; // /ext/apps_data/flip_store/data/author/file_count.txt
     snprintf(file_count_dir, sizeof(file_count_dir), STORAGE_EXT_PATH_PREFIX "/apps_data/flip_store/data/%s/file_count.txt", author);
@@ -339,8 +340,8 @@ bool flip_store_install_all_github_files(FlipperHTTP *fhttp, const char *author,
         bool parse()
         {
             // remove .txt from the filename
-            char current_file_path[256];
-            char new_file_path[256];
+            char current_file_path[512];
+            char new_file_path[512];
             snprintf(current_file_path, sizeof(current_file_path), STORAGE_EXT_PATH_PREFIX "/apps_data/flip_store/%s/%s/%s.txt", author, repo, furi_string_get_cstr(name));
             snprintf(new_file_path, sizeof(new_file_path), STORAGE_EXT_PATH_PREFIX "/apps_data/flip_store/%s/%s/%s", author, repo, furi_string_get_cstr(name));
             Storage *storage = furi_record_open(RECORD_STORAGE);
@@ -372,5 +373,6 @@ bool flip_store_install_all_github_files(FlipperHTTP *fhttp, const char *author,
         furi_string_free(name);
         furi_string_free(link);
     }
+    fhttp->state = IDLE;
     return true;
 }

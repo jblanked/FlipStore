@@ -1,5 +1,5 @@
 # FlipStore
-Download Flipper Zero apps directly to your Flipper Zero using WiFi. You no longer need another device to install apps. FlipStore uses the FlipperHTTP flash for the WiFi Devboard, first introduced in the WebCrawler app: https://github.com/jblanked/WebCrawler-FlipperZero/tree/main/assets/FlipperHTTP
+Download Flipper Zero apps directly to your Flipper Zero using WiFi. 
 
 ## Features
 - App Catalog

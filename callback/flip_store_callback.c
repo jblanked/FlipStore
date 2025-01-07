@@ -400,55 +400,77 @@ static void flip_store_text_updated_author(void *context)
     view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewTextInput);
 }
 
-static bool flip_store_fetch_github(DataLoaderModel *model)
+static bool flip_store_fetch_github(FlipperHTTP *fhttp)
 {
-    if (!model || !model->fhttp)
+    if (!fhttp)
     {
-        FURI_LOG_E(TAG, "Model/FlipperHTTP is NULL");
+        FURI_LOG_E(TAG, "FlipperHTTP is NULL");
         return false;
     }
-
-    if (model->request_index == 0)
+    char author[64];
+    char repo[64];
+    if (!load_char("Github-Author", author, sizeof(author)) || !load_char("Github-Repo", repo, sizeof(repo)))
     {
-        char author[64];
-        char repo[64];
-        if (!load_char("Github-Author", author, sizeof(author)) || !load_char("Github-Repo", repo, sizeof(repo)))
-        {
-            FURI_LOG_E(TAG, "Failed to load Github author or repo");
-            return false;
-        }
-
-        return flip_store_get_github_contents(model->fhttp, author, repo);
+        FURI_LOG_E(TAG, "Failed to load Github author or repo");
+        return false;
     }
-    return false; // return false for now
+    return flip_store_get_github_contents(fhttp, author, repo);
 }
 
-static char *flip_store_parse_github(DataLoaderModel *model)
+static bool flip_store_parse_github(FlipperHTTP *fhttp)
 {
-    if (model->request_index == 0)
+    if (!fhttp)
     {
-        char author[64];
-        char repo[64];
-        if (!load_char("Github-Author", author, sizeof(author)) || !load_char("Github-Repo", repo, sizeof(repo)))
-        {
-            FURI_LOG_E(TAG, "Failed to load Github author or repo");
-            return "Failed to load Github author or repo";
-        }
-        if (!flip_store_parse_github_contents(model->fhttp->file_path, author, repo))
-        {
-            return "Failed to parse Github contents";
-        }
-        if (!flip_store_install_all_github_files(model->fhttp, author, repo))
-        {
-            return "Failed to install all Github files";
-        }
-        return "Repository downloaded successfully";
+        FURI_LOG_E(TAG, "FlipperHTTP is NULL");
+        return false;
     }
-    return "Failed to download repository.";
+    char author[64];
+    char repo[64];
+    if (!load_char("Github-Author", author, sizeof(author)) || !load_char("Github-Repo", repo, sizeof(repo)))
+    {
+        FURI_LOG_E(TAG, "Failed to load Github author or repo");
+        return false;
+    }
+    if (!flip_store_parse_github_contents(fhttp->file_path, author, repo))
+    {
+        return false;
+    }
+    return flip_store_install_all_github_files(fhttp, author, repo);
 }
-static void flip_store_github_switch_to_view(FlipStoreApp *app)
+static bool github_success = false;
+static void flip_store_get_github_repository(FlipStoreApp *app)
 {
-    flip_store_generic_switch_to_view(app, "Downloading Repository..", flip_store_fetch_github, flip_store_parse_github, 2, callback_to_submenu_options, FlipStoreViewLoader);
+    FlipperHTTP *fhttp = flipper_http_alloc();
+    if (!fhttp)
+    {
+        FURI_LOG_E(TAG, "Failed to allocate FlipperHTTP");
+        return;
+    }
+    if (!app)
+    {
+        FURI_LOG_E(TAG, "FlipStoreApp is NULL");
+        return;
+    }
+    bool http_request()
+    {
+        github_success = flip_store_fetch_github(fhttp);
+        return github_success;
+    }
+    bool http_parse()
+    {
+        github_success = flip_store_parse_github(fhttp);
+        return github_success;
+    }
+    flipper_http_loading_task(fhttp, http_request, http_parse, FlipStoreViewSubmenuOptions, FlipStoreViewWidgetResult, &app->view_dispatcher);
+    flipper_http_free(fhttp);
+    if (github_success)
+    {
+        easy_flipper_dialog("Success", "Repository downloaded\nsuccessfully.");
+    }
+    else
+    {
+        easy_flipper_dialog("Failure", "Failed to download\nrepository.");
+    }
 }
 static void flip_store_text_updated_repo(void *context)
 {
@@ -468,7 +490,7 @@ static void flip_store_text_updated_repo(void *context)
     // save the setting
     save_char("Github-Repo", app->uart_text_input_buffer);
     view_dispatcher_switch_to_view(app->view_dispatcher, FlipStoreViewSubmenuOptions);
-    flip_store_github_switch_to_view(app);
+    flip_store_get_github_repository(app);
 }
 static void free_category_submenu(FlipStoreApp *app)
 {
