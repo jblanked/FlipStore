@@ -1,5 +1,9 @@
-#include <flipper_http/flipper_http.h>
-FlipperHTTP fhttp = {0};
+// Description: Flipper HTTP API (For use with Flipper Zero and the FlipperHTTP flash: https://github.com/jblanked/FlipperHTTP)
+// License: MIT
+// Author: JBlanked
+// File: flipper_http.c
+#include <flipper_http/flipper_http.h> // change this to where flipper_http.h is located
+
 // Function to append received data to file
 // make sure to initialize the file path before calling this function
 bool flipper_http_append_to_file(
@@ -85,7 +89,8 @@ FuriString *flipper_http_load_from_file(char *file_path)
     {
         storage_file_free(file);
         furi_record_close(RECORD_STORAGE);
-        return NULL; // Return false if the file does not exist
+        FURI_LOG_E(HTTP_TAG, "Failed to open file for reading: %s", file_path);
+        return NULL;
     }
 
     // Allocate a FuriString to hold the received data
@@ -101,6 +106,16 @@ FuriString *flipper_http_load_from_file(char *file_path)
 
     // Reset the FuriString to ensure it's empty before reading
     furi_string_reset(str_result);
+
+    if (memmgr_get_free_heap() < MAX_FILE_SHOW)
+    {
+        FURI_LOG_E(HTTP_TAG, "Not enough heap to read file.");
+        furi_string_free(str_result);
+        storage_file_close(file);
+        storage_file_free(file);
+        furi_record_close(RECORD_STORAGE);
+        return NULL;
+    }
 
     // Define a buffer to hold the read data
     uint8_t *buffer = (uint8_t *)malloc(MAX_FILE_SHOW);
@@ -132,9 +147,100 @@ FuriString *flipper_http_load_from_file(char *file_path)
         furi_string_push_back(str_result, buffer[i]);
     }
 
-    // Check if there is more data beyond the maximum size
-    char extra_byte;
-    storage_file_read(file, &extra_byte, 1);
+    // Clean up
+    storage_file_close(file);
+    storage_file_free(file);
+    furi_record_close(RECORD_STORAGE);
+    free(buffer);
+    return str_result;
+}
+
+FuriString *flipper_http_load_from_file_with_limit(char *file_path, size_t limit)
+{
+    // Open the storage record
+    Storage *storage = furi_record_open(RECORD_STORAGE);
+    if (!storage)
+    {
+        FURI_LOG_E(HTTP_TAG, "Failed to open storage record");
+        return NULL;
+    }
+
+    // Allocate a file handle
+    File *file = storage_file_alloc(storage);
+    if (!file)
+    {
+        FURI_LOG_E(HTTP_TAG, "Failed to allocate storage file");
+        furi_record_close(RECORD_STORAGE);
+        return NULL;
+    }
+
+    // Open the file for reading
+    if (!storage_file_open(file, file_path, FSAM_READ, FSOM_OPEN_EXISTING))
+    {
+        storage_file_free(file);
+        furi_record_close(RECORD_STORAGE);
+        FURI_LOG_E(HTTP_TAG, "Failed to open file for reading: %s", file_path);
+        return NULL;
+    }
+
+    if (memmgr_get_free_heap() < limit)
+    {
+        FURI_LOG_E(HTTP_TAG, "Not enough heap to read file.");
+        storage_file_close(file);
+        storage_file_free(file);
+        furi_record_close(RECORD_STORAGE);
+        return NULL;
+    }
+
+    // Allocate a buffer to hold the read data
+    uint8_t *buffer = (uint8_t *)malloc(limit);
+    if (!buffer)
+    {
+        FURI_LOG_E(HTTP_TAG, "Failed to allocate buffer");
+        storage_file_close(file);
+        storage_file_free(file);
+        furi_record_close(RECORD_STORAGE);
+        return NULL;
+    }
+
+    // Allocate a FuriString with preallocated capacity
+    FuriString *str_result = furi_string_alloc();
+    if (!str_result)
+    {
+        FURI_LOG_E(HTTP_TAG, "Failed to allocate FuriString");
+        free(buffer);
+        storage_file_close(file);
+        storage_file_free(file);
+        furi_record_close(RECORD_STORAGE);
+        return NULL;
+    }
+    furi_string_reserve(str_result, limit);
+
+    // Read data into the buffer
+    size_t read_count = storage_file_read(file, buffer, limit);
+    if (storage_file_get_error(file) != FSE_OK)
+    {
+        FURI_LOG_E(HTTP_TAG, "Error reading from file.");
+        furi_string_free(str_result);
+        free(buffer);
+        storage_file_close(file);
+        storage_file_free(file);
+        furi_record_close(RECORD_STORAGE);
+        return NULL;
+    }
+    if (read_count == 0)
+    {
+        FURI_LOG_E(HTTP_TAG, "No data read from file.");
+        furi_string_free(str_result);
+        free(buffer);
+        storage_file_close(file);
+        storage_file_free(file);
+        furi_record_close(RECORD_STORAGE);
+        return NULL;
+    }
+
+    // Append the entire buffer to FuriString in one operation
+    furi_string_cat_str(str_result, (char *)buffer);
 
     // Clean up
     storage_file_close(file);
@@ -148,13 +254,23 @@ FuriString *flipper_http_load_from_file(char *file_path)
 /**
  * @brief      Worker thread to handle UART data asynchronously.
  * @return     0
- * @param      context   The context to pass to the callback.
+ * @param      context   The FlipperHTTP context.
  * @note       This function will handle received data asynchronously via the callback.
  */
 // UART worker thread
 int32_t flipper_http_worker(void *context)
 {
-    UNUSED(context);
+    if (!context)
+    {
+        FURI_LOG_E(HTTP_TAG, "Failed to get context.");
+        return -1;
+    }
+    FlipperHTTP *fhttp = (FlipperHTTP *)context;
+    if (!fhttp)
+    {
+        FURI_LOG_E(HTTP_TAG, "Failed to get context.");
+        return -1;
+    }
     size_t rx_line_pos = 0;
 
     while (1)
@@ -168,11 +284,11 @@ int32_t flipper_http_worker(void *context)
         if (events & WorkerEvtRxDone)
         {
             // Continuously read from the stream buffer until it's empty
-            while (!furi_stream_buffer_is_empty(fhttp.flipper_http_stream))
+            while (!furi_stream_buffer_is_empty(fhttp->flipper_http_stream))
             {
                 // Read one byte at a time
                 char c = 0;
-                size_t received = furi_stream_buffer_receive(fhttp.flipper_http_stream, &c, 1, 0);
+                size_t received = furi_stream_buffer_receive(fhttp->flipper_http_stream, &c, 1, 0);
 
                 if (received == 0)
                 {
@@ -181,43 +297,43 @@ int32_t flipper_http_worker(void *context)
                 }
 
                 // Append the received byte to the file if saving is enabled
-                if (fhttp.save_bytes)
+                if (fhttp->save_bytes)
                 {
                     // Add byte to the buffer
-                    fhttp.file_buffer[fhttp.file_buffer_len++] = c;
+                    fhttp->file_buffer[fhttp->file_buffer_len++] = c;
                     // Write to file if buffer is full
-                    if (fhttp.file_buffer_len >= FILE_BUFFER_SIZE)
+                    if (fhttp->file_buffer_len >= FILE_BUFFER_SIZE)
                     {
                         if (!flipper_http_append_to_file(
-                                fhttp.file_buffer,
-                                fhttp.file_buffer_len,
-                                fhttp.just_started_bytes,
-                                fhttp.file_path))
+                                fhttp->file_buffer,
+                                fhttp->file_buffer_len,
+                                fhttp->just_started_bytes,
+                                fhttp->file_path))
                         {
                             FURI_LOG_E(HTTP_TAG, "Failed to append data to file");
                         }
-                        fhttp.file_buffer_len = 0;
-                        fhttp.just_started_bytes = false;
+                        fhttp->file_buffer_len = 0;
+                        fhttp->just_started_bytes = false;
                     }
                 }
 
                 // Handle line buffering only if callback is set (text data)
-                if (fhttp.handle_rx_line_cb)
+                if (fhttp->handle_rx_line_cb)
                 {
                     // Handle line buffering
                     if (c == '\n' || rx_line_pos >= RX_LINE_BUFFER_SIZE - 1)
                     {
-                        fhttp.rx_line_buffer[rx_line_pos] = '\0'; // Null-terminate the line
+                        fhttp->rx_line_buffer[rx_line_pos] = '\0'; // Null-terminate the line
 
                         // Invoke the callback with the complete line
-                        fhttp.handle_rx_line_cb(fhttp.rx_line_buffer, fhttp.callback_context);
+                        fhttp->handle_rx_line_cb(fhttp->rx_line_buffer, fhttp->callback_context);
 
                         // Reset the line buffer position
                         rx_line_pos = 0;
                     }
                     else
                     {
-                        fhttp.rx_line_buffer[rx_line_pos++] = c; // Add character to the line buffer
+                        fhttp->rx_line_buffer[rx_line_pos++] = c; // Add character to the line buffer
                     }
                 }
             }
@@ -230,22 +346,27 @@ int32_t flipper_http_worker(void *context)
 /**
  * @brief      Callback function for the GET timeout timer.
  * @return     0
- * @param      context   The context to pass to the callback.
+ * @param      context   The FlipperHTTP context.
  * @note       This function will be called when the GET request times out.
  */
 void get_timeout_timer_callback(void *context)
 {
-    UNUSED(context);
-    FURI_LOG_E(HTTP_TAG, "Timeout reached: 2 seconds without receiving the end.");
+    FlipperHTTP *fhttp = (FlipperHTTP *)context;
+    if (!fhttp)
+    {
+        FURI_LOG_E(HTTP_TAG, "Failed to get context.");
+        return;
+    }
+    FURI_LOG_E(HTTP_TAG, "Timeout reached without receiving the end.");
 
     // Reset the state
-    fhttp.started_receiving_get = false;
-    fhttp.started_receiving_post = false;
-    fhttp.started_receiving_put = false;
-    fhttp.started_receiving_delete = false;
+    fhttp->started_receiving_get = false;
+    fhttp->started_receiving_post = false;
+    fhttp->started_receiving_put = false;
+    fhttp->started_receiving_delete = false;
 
     // Update UART state
-    fhttp.state = ISSUE;
+    fhttp->state = ISSUE;
 }
 
 // UART RX Handler Callback (Interrupt Context)
@@ -254,7 +375,7 @@ void get_timeout_timer_callback(void *context)
  * @return     void
  * @param      handle    The UART handle.
  * @param      event     The event type.
- * @param      context   The context to pass to the callback.
+ * @param      context   The FlipperHTTP context.
  * @note       This function will handle received data asynchronously via the callback.
  */
 void _flipper_http_rx_callback(
@@ -262,170 +383,207 @@ void _flipper_http_rx_callback(
     FuriHalSerialRxEvent event,
     void *context)
 {
-    UNUSED(context);
+    FlipperHTTP *fhttp = (FlipperHTTP *)context;
+    if (!fhttp)
+    {
+        FURI_LOG_E(HTTP_TAG, "Failed to get context.");
+        return;
+    }
     if (event == FuriHalSerialRxEventData)
     {
         uint8_t data = furi_hal_serial_async_rx(handle);
-        furi_stream_buffer_send(fhttp.flipper_http_stream, &data, 1, 0);
-        furi_thread_flags_set(fhttp.rx_thread_id, WorkerEvtRxDone);
+        furi_stream_buffer_send(fhttp->flipper_http_stream, &data, 1, 0);
+        furi_thread_flags_set(fhttp->rx_thread_id, WorkerEvtRxDone);
     }
 }
 
 // UART initialization function
 /**
  * @brief      Initialize UART.
- * @return     true if the UART was initialized successfully, false otherwise.
- * @param      callback  The callback function to handle received data (ex. flipper_http_rx_callback).
- * @param      context   The context to pass to the callback.
+ * @return     FlipperHTTP context if the UART was initialized successfully, NULL otherwise.
  * @note       The received data will be handled asynchronously via the callback.
  */
-bool flipper_http_init(FlipperHTTP_Callback callback, void *context)
+FlipperHTTP *flipper_http_alloc()
 {
-    if (!context)
+    FlipperHTTP *fhttp = (FlipperHTTP *)malloc(sizeof(FlipperHTTP));
+    if (!fhttp)
     {
-        FURI_LOG_E(HTTP_TAG, "Invalid context provided to flipper_http_init.");
-        return false;
+        FURI_LOG_E(HTTP_TAG, "Failed to allocate FlipperHTTP.");
+        return NULL;
     }
-    if (!callback)
-    {
-        FURI_LOG_E(HTTP_TAG, "Invalid callback provided to flipper_http_init.");
-        return false;
-    }
-    fhttp.flipper_http_stream = furi_stream_buffer_alloc(RX_BUF_SIZE, 1);
-    if (!fhttp.flipper_http_stream)
+    memset(fhttp, 0, sizeof(FlipperHTTP)); // Initialize allocated memory to zero
+
+    fhttp->flipper_http_stream = furi_stream_buffer_alloc(RX_BUF_SIZE, 1);
+    if (!fhttp->flipper_http_stream)
     {
         FURI_LOG_E(HTTP_TAG, "Failed to allocate UART stream buffer.");
-        return false;
+        free(fhttp);
+        return NULL;
     }
 
-    fhttp.rx_thread = furi_thread_alloc();
-    if (!fhttp.rx_thread)
+    fhttp->rx_thread = furi_thread_alloc();
+    if (!fhttp->rx_thread)
     {
         FURI_LOG_E(HTTP_TAG, "Failed to allocate UART thread.");
-        furi_stream_buffer_free(fhttp.flipper_http_stream);
-        return false;
+        furi_stream_buffer_free(fhttp->flipper_http_stream);
+        free(fhttp);
+        return NULL;
     }
 
-    furi_thread_set_name(fhttp.rx_thread, "FlipperHTTP_RxThread");
-    furi_thread_set_stack_size(fhttp.rx_thread, 1024);
-    furi_thread_set_context(fhttp.rx_thread, &fhttp);
-    furi_thread_set_callback(fhttp.rx_thread, flipper_http_worker);
+    furi_thread_set_name(fhttp->rx_thread, "FlipperHTTP_RxThread");
+    furi_thread_set_stack_size(fhttp->rx_thread, 1024);
+    furi_thread_set_context(fhttp->rx_thread, fhttp); // Corrected context
+    furi_thread_set_callback(fhttp->rx_thread, flipper_http_worker);
 
-    fhttp.handle_rx_line_cb = callback;
-    fhttp.callback_context = context;
+    fhttp->handle_rx_line_cb = flipper_http_rx_callback;
+    fhttp->callback_context = fhttp;
 
-    furi_thread_start(fhttp.rx_thread);
-    fhttp.rx_thread_id = furi_thread_get_id(fhttp.rx_thread);
+    furi_thread_start(fhttp->rx_thread);
+    fhttp->rx_thread_id = furi_thread_get_id(fhttp->rx_thread);
 
-    // handle when the UART control is busy to avoid furi_check failed
+    // Handle when the UART control is busy to avoid furi_check failed
     if (furi_hal_serial_control_is_busy(UART_CH))
     {
         FURI_LOG_E(HTTP_TAG, "UART control is busy.");
-        return false;
+        // Cleanup resources
+        furi_thread_flags_set(fhttp->rx_thread_id, WorkerEvtStop);
+        furi_thread_join(fhttp->rx_thread);
+        furi_thread_free(fhttp->rx_thread);
+        furi_stream_buffer_free(fhttp->flipper_http_stream);
+        free(fhttp);
+        return NULL;
     }
 
-    fhttp.serial_handle = furi_hal_serial_control_acquire(UART_CH);
-    if (!fhttp.serial_handle)
+    fhttp->serial_handle = furi_hal_serial_control_acquire(UART_CH);
+    if (!fhttp->serial_handle)
     {
         FURI_LOG_E(HTTP_TAG, "Failed to acquire UART control - handle is NULL");
         // Cleanup resources
-        furi_thread_free(fhttp.rx_thread);
-        furi_stream_buffer_free(fhttp.flipper_http_stream);
-        return false;
+        furi_thread_flags_set(fhttp->rx_thread_id, WorkerEvtStop);
+        furi_thread_join(fhttp->rx_thread);
+        furi_thread_free(fhttp->rx_thread);
+        furi_stream_buffer_free(fhttp->flipper_http_stream);
+        free(fhttp);
+        return NULL;
     }
 
     // Initialize UART with acquired handle
-    furi_hal_serial_init(fhttp.serial_handle, BAUDRATE);
+    furi_hal_serial_init(fhttp->serial_handle, BAUDRATE);
 
     // Enable RX direction
-    furi_hal_serial_enable_direction(fhttp.serial_handle, FuriHalSerialDirectionRx);
+    furi_hal_serial_enable_direction(fhttp->serial_handle, FuriHalSerialDirectionRx);
 
-    // Start asynchronous RX with the callback
-    furi_hal_serial_async_rx_start(fhttp.serial_handle, _flipper_http_rx_callback, &fhttp, false);
+    // Start asynchronous RX with the corrected callback and context
+    furi_hal_serial_async_rx_start(fhttp->serial_handle, _flipper_http_rx_callback, fhttp, false); // Corrected context
 
     // Wait for the TX to complete to ensure UART is ready
-    furi_hal_serial_tx_wait_complete(fhttp.serial_handle);
+    furi_hal_serial_tx_wait_complete(fhttp->serial_handle);
 
     // Allocate the timer for handling timeouts
-    fhttp.get_timeout_timer = furi_timer_alloc(
+    fhttp->get_timeout_timer = furi_timer_alloc(
         get_timeout_timer_callback, // Callback function
         FuriTimerTypeOnce,          // One-shot timer
-        &fhttp                      // Context passed to callback
+        fhttp                       // Corrected context
     );
 
-    if (!fhttp.get_timeout_timer)
+    if (!fhttp->get_timeout_timer)
     {
         FURI_LOG_E(HTTP_TAG, "Failed to allocate HTTP request timeout timer.");
         // Cleanup resources
-        furi_hal_serial_async_rx_stop(fhttp.serial_handle);
-        furi_hal_serial_disable_direction(fhttp.serial_handle, FuriHalSerialDirectionRx);
-        furi_hal_serial_control_release(fhttp.serial_handle);
-        furi_hal_serial_deinit(fhttp.serial_handle);
-        furi_thread_flags_set(fhttp.rx_thread_id, WorkerEvtStop);
-        furi_thread_join(fhttp.rx_thread);
-        furi_thread_free(fhttp.rx_thread);
-        furi_stream_buffer_free(fhttp.flipper_http_stream);
-        return false;
+        furi_hal_serial_async_rx_stop(fhttp->serial_handle);
+        furi_hal_serial_disable_direction(fhttp->serial_handle, FuriHalSerialDirectionRx);
+        furi_hal_serial_control_release(fhttp->serial_handle);
+        furi_hal_serial_deinit(fhttp->serial_handle);
+        furi_thread_flags_set(fhttp->rx_thread_id, WorkerEvtStop);
+        furi_thread_join(fhttp->rx_thread);
+        furi_thread_free(fhttp->rx_thread);
+        furi_stream_buffer_free(fhttp->flipper_http_stream);
+        free(fhttp);
+        return NULL;
     }
 
     // Set the timer thread priority if needed
     furi_timer_set_thread_priority(FuriTimerThreadPriorityElevated);
 
-    fhttp.last_response = (char *)malloc(RX_BUF_SIZE);
-    if (!fhttp.last_response)
+    fhttp->last_response = (char *)malloc(RX_BUF_SIZE);
+    if (!fhttp->last_response)
     {
         FURI_LOG_E(HTTP_TAG, "Failed to allocate memory for last_response.");
-        return false;
+        // Cleanup resources
+        furi_timer_free(fhttp->get_timeout_timer);
+        furi_hal_serial_async_rx_stop(fhttp->serial_handle);
+        furi_hal_serial_disable_direction(fhttp->serial_handle, FuriHalSerialDirectionRx);
+        furi_hal_serial_control_release(fhttp->serial_handle);
+        furi_hal_serial_deinit(fhttp->serial_handle);
+        furi_thread_flags_set(fhttp->rx_thread_id, WorkerEvtStop);
+        furi_thread_join(fhttp->rx_thread);
+        furi_thread_free(fhttp->rx_thread);
+        furi_stream_buffer_free(fhttp->flipper_http_stream);
+        free(fhttp);
+        return NULL;
     }
+    memset(fhttp->last_response, 0, RX_BUF_SIZE); // Initialize last_response
+
+    fhttp->state = IDLE;
 
     // FURI_LOG_I(HTTP_TAG, "UART initialized successfully.");
-    return true;
+    return fhttp;
 }
 
 // Deinitialize UART
 /**
  * @brief      Deinitialize UART.
  * @return     void
+ * @param fhttp The FlipperHTTP context
  * @note       This function will stop the asynchronous RX, release the serial handle, and free the resources.
  */
-void flipper_http_deinit()
+void flipper_http_free(FlipperHTTP *fhttp)
 {
-    if (fhttp.serial_handle == NULL)
+    if (!fhttp)
+    {
+        FURI_LOG_E(HTTP_TAG, "Failed to get context.");
+        return;
+    }
+    if (fhttp->serial_handle == NULL)
     {
         FURI_LOG_E(HTTP_TAG, "UART handle is NULL. Already deinitialized?");
         return;
     }
     // Stop asynchronous RX
-    furi_hal_serial_async_rx_stop(fhttp.serial_handle);
+    furi_hal_serial_async_rx_stop(fhttp->serial_handle);
 
     // Release and deinitialize the serial handle
-    furi_hal_serial_disable_direction(fhttp.serial_handle, FuriHalSerialDirectionRx);
-    furi_hal_serial_control_release(fhttp.serial_handle);
-    furi_hal_serial_deinit(fhttp.serial_handle);
+    furi_hal_serial_disable_direction(fhttp->serial_handle, FuriHalSerialDirectionRx);
+    furi_hal_serial_control_release(fhttp->serial_handle);
+    furi_hal_serial_deinit(fhttp->serial_handle);
 
     // Signal the worker thread to stop
-    furi_thread_flags_set(fhttp.rx_thread_id, WorkerEvtStop);
+    furi_thread_flags_set(fhttp->rx_thread_id, WorkerEvtStop);
     // Wait for the thread to finish
-    furi_thread_join(fhttp.rx_thread);
+    furi_thread_join(fhttp->rx_thread);
     // Free the thread resources
-    furi_thread_free(fhttp.rx_thread);
+    furi_thread_free(fhttp->rx_thread);
 
     // Free the stream buffer
-    furi_stream_buffer_free(fhttp.flipper_http_stream);
+    furi_stream_buffer_free(fhttp->flipper_http_stream);
 
     // Free the timer
-    if (fhttp.get_timeout_timer)
+    if (fhttp->get_timeout_timer)
     {
-        furi_timer_free(fhttp.get_timeout_timer);
-        fhttp.get_timeout_timer = NULL;
+        furi_timer_free(fhttp->get_timeout_timer);
+        fhttp->get_timeout_timer = NULL;
     }
 
     // Free the last response
-    if (fhttp.last_response)
+    if (fhttp->last_response)
     {
-        free(fhttp.last_response);
-        fhttp.last_response = NULL;
+        free(fhttp->last_response);
+        fhttp->last_response = NULL;
     }
+
+    // Free the FlipperHTTP context
+    free(fhttp);
+    fhttp = NULL;
 
     // FURI_LOG_I("FlipperHTTP", "UART deinitialized successfully.");
 }
@@ -434,11 +592,17 @@ void flipper_http_deinit()
 /**
  * @brief      Send data over UART with newline termination.
  * @return     true if the data was sent successfully, false otherwise.
+ * @param fhttp The FlipperHTTP context
  * @param      data  The data to send over UART.
  * @note       The data will be sent over UART with a newline character appended.
  */
-bool flipper_http_send_data(const char *data)
+bool flipper_http_send_data(FlipperHTTP *fhttp, const char *data)
 {
+    if (!fhttp)
+    {
+        FURI_LOG_E(HTTP_TAG, "Failed to get context.");
+        return false;
+    }
     size_t data_length = strlen(data);
     if (data_length == 0)
     {
@@ -450,7 +614,7 @@ bool flipper_http_send_data(const char *data)
     size_t send_length = data_length + 1; // +1 for '\n'
     if (send_length > 256)
     { // Ensure buffer size is sufficient
-        FURI_LOG_E("FlipperHTTP", "Data too long to send over FHTTP.");
+        FURI_LOG_E("FlipperHTTP", "Data too long to send over FHTTP->");
         return false;
     }
 
@@ -459,20 +623,20 @@ bool flipper_http_send_data(const char *data)
     send_buffer[data_length] = '\n';     // Append newline
     send_buffer[data_length + 1] = '\0'; // Null-terminate
 
-    if (fhttp.state == INACTIVE && ((strstr(send_buffer, "[PING]") == NULL) &&
-                                    (strstr(send_buffer, "[WIFI/CONNECT]") == NULL)))
+    if (fhttp->state == INACTIVE && ((strstr(send_buffer, "[PING]") == NULL) &&
+                                     (strstr(send_buffer, "[WIFI/CONNECT]") == NULL)))
     {
         FURI_LOG_E("FlipperHTTP", "Cannot send data while INACTIVE.");
-        fhttp.last_response = "Cannot send data while INACTIVE.";
+        fhttp->last_response = "Cannot send data while INACTIVE.";
         return false;
     }
 
-    fhttp.state = SENDING;
-    furi_hal_serial_tx(fhttp.serial_handle, (const uint8_t *)send_buffer, send_length);
+    fhttp->state = SENDING;
+    furi_hal_serial_tx(fhttp->serial_handle, (const uint8_t *)send_buffer, send_length);
 
     // Uncomment below line to log the data sent over UART
     // FURI_LOG_I("FlipperHTTP", "Sent data over UART: %s", send_buffer);
-    fhttp.state = IDLE;
+    fhttp->state = IDLE;
     return true;
 }
 
@@ -480,20 +644,26 @@ bool flipper_http_send_data(const char *data)
 /**
  * @brief      Send a PING request to check if the Wifi Dev Board is connected.
  * @return     true if the request was successful, false otherwise.
+ * @param fhttp The FlipperHTTP context
  * @note       The received data will be handled asynchronously via the callback.
  * @note       This is best used to check if the Wifi Dev Board is connected.
  * @note       The state will remain INACTIVE until a PONG is received.
  */
-bool flipper_http_ping()
+bool flipper_http_ping(FlipperHTTP *fhttp)
 {
+    if (!fhttp)
+    {
+        FURI_LOG_E(HTTP_TAG, "Failed to get context.");
+        return false;
+    }
     const char *command = "[PING]";
-    if (!flipper_http_send_data(command))
+    if (!flipper_http_send_data(fhttp, command))
     {
         FURI_LOG_E("FlipperHTTP", "Failed to send PING command.");
         return false;
     }
     // set state as INACTIVE to be made IDLE if PONG is received
-    fhttp.state = INACTIVE;
+    fhttp->state = INACTIVE;
     // The response will be handled asynchronously via the callback
     return true;
 }
@@ -502,12 +672,18 @@ bool flipper_http_ping()
 /**
  * @brief      Send a command to list available commands.
  * @return     true if the request was successful, false otherwise.
+ * @param fhttp The FlipperHTTP context
  * @note       The received data will be handled asynchronously via the callback.
  */
-bool flipper_http_list_commands()
+bool flipper_http_list_commands(FlipperHTTP *fhttp)
 {
+    if (!fhttp)
+    {
+        FURI_LOG_E(HTTP_TAG, "Failed to get context.");
+        return false;
+    }
     const char *command = "[LIST]";
-    if (!flipper_http_send_data(command))
+    if (!flipper_http_send_data(fhttp, command))
     {
         FURI_LOG_E("FlipperHTTP", "Failed to send LIST command.");
         return false;
@@ -521,12 +697,18 @@ bool flipper_http_list_commands()
 /**
  * @brief      Allow the LED to display while processing.
  * @return     true if the request was successful, false otherwise.
+ * @param fhttp The FlipperHTTP context
  * @note       The received data will be handled asynchronously via the callback.
  */
-bool flipper_http_led_on()
+bool flipper_http_led_on(FlipperHTTP *fhttp)
 {
+    if (!fhttp)
+    {
+        FURI_LOG_E(HTTP_TAG, "Failed to get context.");
+        return false;
+    }
     const char *command = "[LED/ON]";
-    if (!flipper_http_send_data(command))
+    if (!flipper_http_send_data(fhttp, command))
     {
         FURI_LOG_E("FlipperHTTP", "Failed to send LED ON command.");
         return false;
@@ -540,12 +722,18 @@ bool flipper_http_led_on()
 /**
  * @brief      Disable the LED from displaying while processing.
  * @return     true if the request was successful, false otherwise.
+ * @param fhttp The FlipperHTTP context
  * @note       The received data will be handled asynchronously via the callback.
  */
-bool flipper_http_led_off()
+bool flipper_http_led_off(FlipperHTTP *fhttp)
 {
+    if (!fhttp)
+    {
+        FURI_LOG_E(HTTP_TAG, "Failed to get context.");
+        return false;
+    }
     const char *command = "[LED/OFF]";
-    if (!flipper_http_send_data(command))
+    if (!flipper_http_send_data(fhttp, command))
     {
         FURI_LOG_E("FlipperHTTP", "Failed to send LED OFF command.");
         return false;
@@ -559,12 +747,18 @@ bool flipper_http_led_off()
 /**
  * @brief      Parse JSON data.
  * @return     true if the JSON data was parsed successfully, false otherwise.
+ * @param fhttp The FlipperHTTP context
  * @param      key       The key to parse from the JSON data.
  * @param      json_data The JSON data to parse.
  * @note       The received data will be handled asynchronously via the callback.
  */
-bool flipper_http_parse_json(const char *key, const char *json_data)
+bool flipper_http_parse_json(FlipperHTTP *fhttp, const char *key, const char *json_data)
 {
+    if (!fhttp)
+    {
+        FURI_LOG_E(HTTP_TAG, "Failed to get context.");
+        return false;
+    }
     if (!key || !json_data)
     {
         FURI_LOG_E("FlipperHTTP", "Invalid arguments provided to flipper_http_parse_json.");
@@ -580,7 +774,7 @@ bool flipper_http_parse_json(const char *key, const char *json_data)
         return false;
     }
 
-    if (!flipper_http_send_data(buffer))
+    if (!flipper_http_send_data(fhttp, buffer))
     {
         FURI_LOG_E("FlipperHTTP", "Failed to send JSON parse command.");
         return false;
@@ -594,13 +788,19 @@ bool flipper_http_parse_json(const char *key, const char *json_data)
 /**
  * @brief      Parse JSON array data.
  * @return     true if the JSON array data was parsed successfully, false otherwise.
+ * @param fhttp The FlipperHTTP context
  * @param      key       The key to parse from the JSON array data.
  * @param      index     The index to parse from the JSON array data.
  * @param      json_data The JSON array data to parse.
  * @note       The received data will be handled asynchronously via the callback.
  */
-bool flipper_http_parse_json_array(const char *key, int index, const char *json_data)
+bool flipper_http_parse_json_array(FlipperHTTP *fhttp, const char *key, int index, const char *json_data)
 {
+    if (!fhttp)
+    {
+        FURI_LOG_E(HTTP_TAG, "Failed to get context.");
+        return false;
+    }
     if (!key || !json_data)
     {
         FURI_LOG_E("FlipperHTTP", "Invalid arguments provided to flipper_http_parse_json_array.");
@@ -621,7 +821,7 @@ bool flipper_http_parse_json_array(const char *key, int index, const char *json_
         return false;
     }
 
-    if (!flipper_http_send_data(buffer))
+    if (!flipper_http_send_data(fhttp, buffer))
     {
         FURI_LOG_E("FlipperHTTP", "Failed to send JSON parse array command.");
         return false;
@@ -635,12 +835,18 @@ bool flipper_http_parse_json_array(const char *key, int index, const char *json_
 /**
  * @brief      Send a command to scan for WiFi networks.
  * @return     true if the request was successful, false otherwise.
+ * @param fhttp The FlipperHTTP context
  * @note       The received data will be handled asynchronously via the callback.
  */
-bool flipper_http_scan_wifi()
+bool flipper_http_scan_wifi(FlipperHTTP *fhttp)
 {
+    if (!fhttp)
+    {
+        FURI_LOG_E(HTTP_TAG, "Failed to get context.");
+        return false;
+    }
     const char *command = "[WIFI/SCAN]";
-    if (!flipper_http_send_data(command))
+    if (!flipper_http_send_data(fhttp, command))
     {
         FURI_LOG_E("FlipperHTTP", "Failed to send WiFi scan command.");
         return false;
@@ -654,10 +860,16 @@ bool flipper_http_scan_wifi()
 /**
  * @brief      Send a command to save WiFi settings.
  * @return     true if the request was successful, false otherwise.
+ * @param fhttp The FlipperHTTP context
  * @note       The received data will be handled asynchronously via the callback.
  */
-bool flipper_http_save_wifi(const char *ssid, const char *password)
+bool flipper_http_save_wifi(FlipperHTTP *fhttp, const char *ssid, const char *password)
 {
+    if (!fhttp)
+    {
+        FURI_LOG_E(HTTP_TAG, "Failed to get context.");
+        return false;
+    }
     if (!ssid || !password)
     {
         FURI_LOG_E("FlipperHTTP", "Invalid arguments provided to flipper_http_save_wifi.");
@@ -672,7 +884,7 @@ bool flipper_http_save_wifi(const char *ssid, const char *password)
         return false;
     }
 
-    if (!flipper_http_send_data(buffer))
+    if (!flipper_http_send_data(fhttp, buffer))
     {
         FURI_LOG_E("FlipperHTTP", "Failed to send WiFi save command.");
         return false;
@@ -686,12 +898,18 @@ bool flipper_http_save_wifi(const char *ssid, const char *password)
 /**
  * @brief      Send a command to get the IP address of the WiFi Devboard
  * @return     true if the request was successful, false otherwise.
+ * @param fhttp The FlipperHTTP context
  * @note       The received data will be handled asynchronously via the callback.
  */
-bool flipper_http_ip_address()
+bool flipper_http_ip_address(FlipperHTTP *fhttp)
 {
+    if (!fhttp)
+    {
+        FURI_LOG_E(HTTP_TAG, "Failed to get context.");
+        return false;
+    }
     const char *command = "[IP/ADDRESS]";
-    if (!flipper_http_send_data(command))
+    if (!flipper_http_send_data(fhttp, command))
     {
         FURI_LOG_E("FlipperHTTP", "Failed to send IP address command.");
         return false;
@@ -705,12 +923,18 @@ bool flipper_http_ip_address()
 /**
  * @brief      Send a command to get the IP address of the connected WiFi network.
  * @return     true if the request was successful, false otherwise.
+ * @param fhttp The FlipperHTTP context
  * @note       The received data will be handled asynchronously via the callback.
  */
-bool flipper_http_ip_wifi()
+bool flipper_http_ip_wifi(FlipperHTTP *fhttp)
 {
+    if (!fhttp)
+    {
+        FURI_LOG_E(HTTP_TAG, "Failed to get context.");
+        return false;
+    }
     const char *command = "[WIFI/IP]";
-    if (!flipper_http_send_data(command))
+    if (!flipper_http_send_data(fhttp, command))
     {
         FURI_LOG_E("FlipperHTTP", "Failed to send WiFi IP command.");
         return false;
@@ -724,12 +948,18 @@ bool flipper_http_ip_wifi()
 /**
  * @brief      Send a command to disconnect from WiFi.
  * @return     true if the request was successful, false otherwise.
+ * @param fhttp The FlipperHTTP context
  * @note       The received data will be handled asynchronously via the callback.
  */
-bool flipper_http_disconnect_wifi()
+bool flipper_http_disconnect_wifi(FlipperHTTP *fhttp)
 {
+    if (!fhttp)
+    {
+        FURI_LOG_E(HTTP_TAG, "Failed to get context.");
+        return false;
+    }
     const char *command = "[WIFI/DISCONNECT]";
-    if (!flipper_http_send_data(command))
+    if (!flipper_http_send_data(fhttp, command))
     {
         FURI_LOG_E("FlipperHTTP", "Failed to send WiFi disconnect command.");
         return false;
@@ -743,12 +973,18 @@ bool flipper_http_disconnect_wifi()
 /**
  * @brief      Send a command to connect to WiFi.
  * @return     true if the request was successful, false otherwise.
+ * @param fhttp The FlipperHTTP context
  * @note       The received data will be handled asynchronously via the callback.
  */
-bool flipper_http_connect_wifi()
+bool flipper_http_connect_wifi(FlipperHTTP *fhttp)
 {
+    if (!fhttp)
+    {
+        FURI_LOG_E(HTTP_TAG, "Failed to get context.");
+        return false;
+    }
     const char *command = "[WIFI/CONNECT]";
-    if (!flipper_http_send_data(command))
+    if (!flipper_http_send_data(fhttp, command))
     {
         FURI_LOG_E("FlipperHTTP", "Failed to send WiFi connect command.");
         return false;
@@ -762,11 +998,17 @@ bool flipper_http_connect_wifi()
 /**
  * @brief      Send a GET request to the specified URL.
  * @return     true if the request was successful, false otherwise.
+ * @param fhttp The FlipperHTTP context
  * @param      url  The URL to send the GET request to.
  * @note       The received data will be handled asynchronously via the callback.
  */
-bool flipper_http_get_request(const char *url)
+bool flipper_http_get_request(FlipperHTTP *fhttp, const char *url)
 {
+    if (!fhttp)
+    {
+        FURI_LOG_E(HTTP_TAG, "Failed to get context.");
+        return false;
+    }
     if (!url)
     {
         FURI_LOG_E("FlipperHTTP", "Invalid arguments provided to flipper_http_get_request.");
@@ -783,7 +1025,7 @@ bool flipper_http_get_request(const char *url)
     }
 
     // Send GET request via UART
-    if (!flipper_http_send_data(command))
+    if (!flipper_http_send_data(fhttp, command))
     {
         FURI_LOG_E("FlipperHTTP", "Failed to send GET request command.");
         return false;
@@ -792,16 +1034,23 @@ bool flipper_http_get_request(const char *url)
     // The response will be handled asynchronously via the callback
     return true;
 }
+
 // Function to send a GET request with headers
 /**
  * @brief      Send a GET request to the specified URL.
  * @return     true if the request was successful, false otherwise.
+ * @param fhttp The FlipperHTTP context
  * @param      url  The URL to send the GET request to.
  * @param      headers  The headers to send with the GET request.
  * @note       The received data will be handled asynchronously via the callback.
  */
-bool flipper_http_get_request_with_headers(const char *url, const char *headers)
+bool flipper_http_get_request_with_headers(FlipperHTTP *fhttp, const char *url, const char *headers)
 {
+    if (!fhttp)
+    {
+        FURI_LOG_E(HTTP_TAG, "Failed to get context.");
+        return false;
+    }
     if (!url || !headers)
     {
         FURI_LOG_E(
@@ -820,7 +1069,7 @@ bool flipper_http_get_request_with_headers(const char *url, const char *headers)
     }
 
     // Send GET request via UART
-    if (!flipper_http_send_data(command))
+    if (!flipper_http_send_data(fhttp, command))
     {
         FURI_LOG_E("FlipperHTTP", "Failed to send GET request command with headers.");
         return false;
@@ -829,16 +1078,23 @@ bool flipper_http_get_request_with_headers(const char *url, const char *headers)
     // The response will be handled asynchronously via the callback
     return true;
 }
+
 // Function to send a GET request with headers and return bytes
 /**
  * @brief      Send a GET request to the specified URL.
  * @return     true if the request was successful, false otherwise.
+ * @param fhttp The FlipperHTTP context
  * @param      url  The URL to send the GET request to.
  * @param      headers  The headers to send with the GET request.
  * @note       The received data will be handled asynchronously via the callback.
  */
-bool flipper_http_get_request_bytes(const char *url, const char *headers)
+bool flipper_http_get_request_bytes(FlipperHTTP *fhttp, const char *url, const char *headers)
 {
+    if (!fhttp)
+    {
+        FURI_LOG_E(HTTP_TAG, "Failed to get context.");
+        return false;
+    }
     if (!url || !headers)
     {
         FURI_LOG_E("FlipperHTTP", "Invalid arguments provided to flipper_http_get_request_bytes.");
@@ -856,7 +1112,7 @@ bool flipper_http_get_request_bytes(const char *url, const char *headers)
     }
 
     // Send GET request via UART
-    if (!flipper_http_send_data(command))
+    if (!flipper_http_send_data(fhttp, command))
     {
         FURI_LOG_E("FlipperHTTP", "Failed to send GET request command with headers.");
         return false;
@@ -865,20 +1121,28 @@ bool flipper_http_get_request_bytes(const char *url, const char *headers)
     // The response will be handled asynchronously via the callback
     return true;
 }
+
 // Function to send a POST request with headers
 /**
  * @brief      Send a POST request to the specified URL.
  * @return     true if the request was successful, false otherwise.
+ * @param fhttp The FlipperHTTP context
  * @param      url  The URL to send the POST request to.
  * @param      headers  The headers to send with the POST request.
  * @param      data  The data to send with the POST request.
  * @note       The received data will be handled asynchronously via the callback.
  */
 bool flipper_http_post_request_with_headers(
+    FlipperHTTP *fhttp,
     const char *url,
     const char *headers,
     const char *payload)
 {
+    if (!fhttp)
+    {
+        FURI_LOG_E(HTTP_TAG, "Failed to get context.");
+        return false;
+    }
     if (!url || !headers || !payload)
     {
         FURI_LOG_E(
@@ -903,7 +1167,7 @@ bool flipper_http_post_request_with_headers(
     }
 
     // Send POST request via UART
-    if (!flipper_http_send_data(command))
+    if (!flipper_http_send_data(fhttp, command))
     {
         FURI_LOG_E("FlipperHTTP", "Failed to send POST request command with headers and data.");
         return false;
@@ -912,17 +1176,24 @@ bool flipper_http_post_request_with_headers(
     // The response will be handled asynchronously via the callback
     return true;
 }
+
 // Function to send a POST request with headers and return bytes
 /**
  * @brief      Send a POST request to the specified URL.
  * @return     true if the request was successful, false otherwise.
+ * @param fhttp The FlipperHTTP context
  * @param      url  The URL to send the POST request to.
  * @param      headers  The headers to send with the POST request.
  * @param      payload  The data to send with the POST request.
  * @note       The received data will be handled asynchronously via the callback.
  */
-bool flipper_http_post_request_bytes(const char *url, const char *headers, const char *payload)
+bool flipper_http_post_request_bytes(FlipperHTTP *fhttp, const char *url, const char *headers, const char *payload)
 {
+    if (!fhttp)
+    {
+        FURI_LOG_E(HTTP_TAG, "Failed to get context.");
+        return false;
+    }
     if (!url || !headers || !payload)
     {
         FURI_LOG_E(
@@ -946,7 +1217,7 @@ bool flipper_http_post_request_bytes(const char *url, const char *headers, const
     }
 
     // Send POST request via UART
-    if (!flipper_http_send_data(command))
+    if (!flipper_http_send_data(fhttp, command))
     {
         FURI_LOG_E("FlipperHTTP", "Failed to send POST request command with headers and data.");
         return false;
@@ -955,20 +1226,28 @@ bool flipper_http_post_request_bytes(const char *url, const char *headers, const
     // The response will be handled asynchronously via the callback
     return true;
 }
+
 // Function to send a PUT request with headers
 /**
  * @brief      Send a PUT request to the specified URL.
  * @return     true if the request was successful, false otherwise.
+ * @param fhttp The FlipperHTTP context
  * @param      url  The URL to send the PUT request to.
  * @param      headers  The headers to send with the PUT request.
  * @param      data  The data to send with the PUT request.
  * @note       The received data will be handled asynchronously via the callback.
  */
 bool flipper_http_put_request_with_headers(
+    FlipperHTTP *fhttp,
     const char *url,
     const char *headers,
     const char *payload)
 {
+    if (!fhttp)
+    {
+        FURI_LOG_E(HTTP_TAG, "Failed to get context.");
+        return false;
+    }
     if (!url || !headers || !payload)
     {
         FURI_LOG_E(
@@ -992,7 +1271,7 @@ bool flipper_http_put_request_with_headers(
     }
 
     // Send PUT request via UART
-    if (!flipper_http_send_data(command))
+    if (!flipper_http_send_data(fhttp, command))
     {
         FURI_LOG_E("FlipperHTTP", "Failed to send PUT request command with headers and data.");
         return false;
@@ -1001,20 +1280,28 @@ bool flipper_http_put_request_with_headers(
     // The response will be handled asynchronously via the callback
     return true;
 }
+
 // Function to send a DELETE request with headers
 /**
  * @brief      Send a DELETE request to the specified URL.
  * @return     true if the request was successful, false otherwise.
+ * @param fhttp The FlipperHTTP context
  * @param      url  The URL to send the DELETE request to.
  * @param      headers  The headers to send with the DELETE request.
  * @param      data  The data to send with the DELETE request.
  * @note       The received data will be handled asynchronously via the callback.
  */
 bool flipper_http_delete_request_with_headers(
+    FlipperHTTP *fhttp,
     const char *url,
     const char *headers,
     const char *payload)
 {
+    if (!fhttp)
+    {
+        FURI_LOG_E(HTTP_TAG, "Failed to get context.");
+        return false;
+    }
     if (!url || !headers || !payload)
     {
         FURI_LOG_E(
@@ -1040,7 +1327,7 @@ bool flipper_http_delete_request_with_headers(
     }
 
     // Send DELETE request via UART
-    if (!flipper_http_send_data(command))
+    if (!flipper_http_send_data(fhttp, command))
     {
         FURI_LOG_E("FlipperHTTP", "Failed to send DELETE request command with headers and data.");
         return false;
@@ -1049,354 +1336,6 @@ bool flipper_http_delete_request_with_headers(
     // The response will be handled asynchronously via the callback
     return true;
 }
-static char *trim(const char *str);
-// Function to handle received data asynchronously
-/**
- * @brief      Callback function to handle received data asynchronously.
- * @return     void
- * @param      line     The received line.
- * @param      context  The context passed to the callback.
- * @note       The received data will be handled asynchronously via the callback and handles the state of the UART.
- */
-void flipper_http_rx_callback(const char *line, void *context)
-{
-    if (!line || !context)
-    {
-        FURI_LOG_E(HTTP_TAG, "Invalid arguments provided to flipper_http_rx_callback.");
-        return;
-    }
-
-    // Trim the received line to check if it's empty
-    char *trimmed_line = trim(line);
-    if (trimmed_line != NULL && trimmed_line[0] != '\0')
-    {
-        // if the line is not [GET/END] or [POST/END] or [PUT/END] or [DELETE/END]
-        if (strstr(trimmed_line, "[GET/END]") == NULL &&
-            strstr(trimmed_line, "[POST/END]") == NULL &&
-            strstr(trimmed_line, "[PUT/END]") == NULL &&
-            strstr(trimmed_line, "[DELETE/END]") == NULL)
-        {
-            strncpy(fhttp.last_response, trimmed_line, RX_BUF_SIZE);
-        }
-    }
-    free(trimmed_line); // Free the allocated memory for trimmed_line
-
-    if (fhttp.state != INACTIVE && fhttp.state != ISSUE)
-    {
-        fhttp.state = RECEIVING;
-    }
-
-    // Uncomment below line to log the data received over UART
-    // FURI_LOG_I(HTTP_TAG, "Received UART line: %s", line);
-
-    // Check if we've started receiving data from a GET request
-    if (fhttp.started_receiving_get)
-    {
-        // Restart the timeout timer each time new data is received
-        furi_timer_restart(fhttp.get_timeout_timer, TIMEOUT_DURATION_TICKS);
-
-        if (strstr(line, "[GET/END]") != NULL)
-        {
-            FURI_LOG_I(HTTP_TAG, "GET request completed.");
-            // Stop the timer since we've completed the GET request
-            furi_timer_stop(fhttp.get_timeout_timer);
-            fhttp.started_receiving_get = false;
-            fhttp.just_started_get = false;
-            fhttp.state = IDLE;
-            fhttp.save_bytes = false;
-            fhttp.save_received_data = false;
-
-            if (fhttp.is_bytes_request)
-            {
-                // Search for the binary marker `[GET/END]` in the file buffer
-                const char marker[] = "[GET/END]";
-                const size_t marker_len = sizeof(marker) - 1; // Exclude null terminator
-
-                for (size_t i = 0; i <= fhttp.file_buffer_len - marker_len; i++)
-                {
-                    // Check if the marker is found
-                    if (memcmp(&fhttp.file_buffer[i], marker, marker_len) == 0)
-                    {
-                        // Remove the marker by shifting the remaining data left
-                        size_t remaining_len = fhttp.file_buffer_len - (i + marker_len);
-                        memmove(&fhttp.file_buffer[i], &fhttp.file_buffer[i + marker_len], remaining_len);
-                        fhttp.file_buffer_len -= marker_len;
-                        break;
-                    }
-                }
-
-                // If there is data left in the buffer, append it to the file
-                if (fhttp.file_buffer_len > 0)
-                {
-                    if (!flipper_http_append_to_file(fhttp.file_buffer, fhttp.file_buffer_len, false, fhttp.file_path))
-                    {
-                        FURI_LOG_E(HTTP_TAG, "Failed to append data to file.");
-                    }
-                    fhttp.file_buffer_len = 0;
-                }
-            }
-
-            fhttp.is_bytes_request = false;
-            return;
-        }
-
-        // Append the new line to the existing data
-        if (fhttp.save_received_data &&
-            !flipper_http_append_to_file(
-                line, strlen(line), !fhttp.just_started_get, fhttp.file_path))
-        {
-            FURI_LOG_E(HTTP_TAG, "Failed to append data to file.");
-            fhttp.started_receiving_get = false;
-            fhttp.just_started_get = false;
-            fhttp.state = IDLE;
-            return;
-        }
-
-        if (!fhttp.just_started_get)
-        {
-            fhttp.just_started_get = true;
-        }
-        return;
-    }
-
-    // Check if we've started receiving data from a POST request
-    else if (fhttp.started_receiving_post)
-    {
-        // Restart the timeout timer each time new data is received
-        furi_timer_restart(fhttp.get_timeout_timer, TIMEOUT_DURATION_TICKS);
-
-        if (strstr(line, "[POST/END]") != NULL)
-        {
-            FURI_LOG_I(HTTP_TAG, "POST request completed.");
-            // Stop the timer since we've completed the POST request
-            furi_timer_stop(fhttp.get_timeout_timer);
-            fhttp.started_receiving_post = false;
-            fhttp.just_started_post = false;
-            fhttp.state = IDLE;
-            fhttp.save_bytes = false;
-            fhttp.save_received_data = false;
-
-            if (fhttp.is_bytes_request)
-            {
-                // Search for the binary marker `[POST/END]` in the file buffer
-                const char marker[] = "[POST/END]";
-                const size_t marker_len = sizeof(marker) - 1; // Exclude null terminator
-
-                for (size_t i = 0; i <= fhttp.file_buffer_len - marker_len; i++)
-                {
-                    // Check if the marker is found
-                    if (memcmp(&fhttp.file_buffer[i], marker, marker_len) == 0)
-                    {
-                        // Remove the marker by shifting the remaining data left
-                        size_t remaining_len = fhttp.file_buffer_len - (i + marker_len);
-                        memmove(&fhttp.file_buffer[i], &fhttp.file_buffer[i + marker_len], remaining_len);
-                        fhttp.file_buffer_len -= marker_len;
-                        break;
-                    }
-                }
-
-                // If there is data left in the buffer, append it to the file
-                if (fhttp.file_buffer_len > 0)
-                {
-                    if (!flipper_http_append_to_file(fhttp.file_buffer, fhttp.file_buffer_len, false, fhttp.file_path))
-                    {
-                        FURI_LOG_E(HTTP_TAG, "Failed to append data to file.");
-                    }
-                    fhttp.file_buffer_len = 0;
-                }
-            }
-
-            fhttp.is_bytes_request = false;
-            return;
-        }
-
-        // Append the new line to the existing data
-        if (fhttp.save_received_data &&
-            !flipper_http_append_to_file(
-                line, strlen(line), !fhttp.just_started_post, fhttp.file_path))
-        {
-            FURI_LOG_E(HTTP_TAG, "Failed to append data to file.");
-            fhttp.started_receiving_post = false;
-            fhttp.just_started_post = false;
-            fhttp.state = IDLE;
-            return;
-        }
-
-        if (!fhttp.just_started_post)
-        {
-            fhttp.just_started_post = true;
-        }
-        return;
-    }
-
-    // Check if we've started receiving data from a PUT request
-    else if (fhttp.started_receiving_put)
-    {
-        // Restart the timeout timer each time new data is received
-        furi_timer_restart(fhttp.get_timeout_timer, TIMEOUT_DURATION_TICKS);
-
-        if (strstr(line, "[PUT/END]") != NULL)
-        {
-            FURI_LOG_I(HTTP_TAG, "PUT request completed.");
-            // Stop the timer since we've completed the PUT request
-            furi_timer_stop(fhttp.get_timeout_timer);
-            fhttp.started_receiving_put = false;
-            fhttp.just_started_put = false;
-            fhttp.state = IDLE;
-            fhttp.save_bytes = false;
-            fhttp.is_bytes_request = false;
-            fhttp.save_received_data = false;
-            return;
-        }
-
-        // Append the new line to the existing data
-        if (fhttp.save_received_data &&
-            !flipper_http_append_to_file(
-                line, strlen(line), !fhttp.just_started_put, fhttp.file_path))
-        {
-            FURI_LOG_E(HTTP_TAG, "Failed to append data to file.");
-            fhttp.started_receiving_put = false;
-            fhttp.just_started_put = false;
-            fhttp.state = IDLE;
-            return;
-        }
-
-        if (!fhttp.just_started_put)
-        {
-            fhttp.just_started_put = true;
-        }
-        return;
-    }
-
-    // Check if we've started receiving data from a DELETE request
-    else if (fhttp.started_receiving_delete)
-    {
-        // Restart the timeout timer each time new data is received
-        furi_timer_restart(fhttp.get_timeout_timer, TIMEOUT_DURATION_TICKS);
-
-        if (strstr(line, "[DELETE/END]") != NULL)
-        {
-            FURI_LOG_I(HTTP_TAG, "DELETE request completed.");
-            // Stop the timer since we've completed the DELETE request
-            furi_timer_stop(fhttp.get_timeout_timer);
-            fhttp.started_receiving_delete = false;
-            fhttp.just_started_delete = false;
-            fhttp.state = IDLE;
-            fhttp.save_bytes = false;
-            fhttp.is_bytes_request = false;
-            fhttp.save_received_data = false;
-            return;
-        }
-
-        // Append the new line to the existing data
-        if (fhttp.save_received_data &&
-            !flipper_http_append_to_file(
-                line, strlen(line), !fhttp.just_started_delete, fhttp.file_path))
-        {
-            FURI_LOG_E(HTTP_TAG, "Failed to append data to file.");
-            fhttp.started_receiving_delete = false;
-            fhttp.just_started_delete = false;
-            fhttp.state = IDLE;
-            return;
-        }
-
-        if (!fhttp.just_started_delete)
-        {
-            fhttp.just_started_delete = true;
-        }
-        return;
-    }
-
-    // Handle different types of responses
-    if (strstr(line, "[SUCCESS]") != NULL || strstr(line, "[CONNECTED]") != NULL)
-    {
-        FURI_LOG_I(HTTP_TAG, "Operation succeeded.");
-    }
-    else if (strstr(line, "[INFO]") != NULL)
-    {
-        FURI_LOG_I(HTTP_TAG, "Received info: %s", line);
-
-        if (fhttp.state == INACTIVE && strstr(line, "[INFO] Already connected to Wifi.") != NULL)
-        {
-            fhttp.state = IDLE;
-        }
-    }
-    else if (strstr(line, "[GET/SUCCESS]") != NULL)
-    {
-        FURI_LOG_I(HTTP_TAG, "GET request succeeded.");
-        fhttp.started_receiving_get = true;
-        furi_timer_start(fhttp.get_timeout_timer, TIMEOUT_DURATION_TICKS);
-        fhttp.state = RECEIVING;
-        // for GET request, save data only if it's a bytes request
-        fhttp.save_bytes = fhttp.is_bytes_request;
-        fhttp.just_started_bytes = true;
-        fhttp.file_buffer_len = 0;
-        return;
-    }
-    else if (strstr(line, "[POST/SUCCESS]") != NULL)
-    {
-        FURI_LOG_I(HTTP_TAG, "POST request succeeded.");
-        fhttp.started_receiving_post = true;
-        furi_timer_start(fhttp.get_timeout_timer, TIMEOUT_DURATION_TICKS);
-        fhttp.state = RECEIVING;
-        // for POST request, save data only if it's a bytes request
-        fhttp.save_bytes = fhttp.is_bytes_request;
-        fhttp.just_started_bytes = true;
-        fhttp.file_buffer_len = 0;
-        return;
-    }
-    else if (strstr(line, "[PUT/SUCCESS]") != NULL)
-    {
-        FURI_LOG_I(HTTP_TAG, "PUT request succeeded.");
-        fhttp.started_receiving_put = true;
-        furi_timer_start(fhttp.get_timeout_timer, TIMEOUT_DURATION_TICKS);
-        fhttp.state = RECEIVING;
-        return;
-    }
-    else if (strstr(line, "[DELETE/SUCCESS]") != NULL)
-    {
-        FURI_LOG_I(HTTP_TAG, "DELETE request succeeded.");
-        fhttp.started_receiving_delete = true;
-        furi_timer_start(fhttp.get_timeout_timer, TIMEOUT_DURATION_TICKS);
-        fhttp.state = RECEIVING;
-        return;
-    }
-    else if (strstr(line, "[DISCONNECTED]") != NULL)
-    {
-        FURI_LOG_I(HTTP_TAG, "WiFi disconnected successfully.");
-    }
-    else if (strstr(line, "[ERROR]") != NULL)
-    {
-        FURI_LOG_E(HTTP_TAG, "Received error: %s", line);
-        fhttp.state = ISSUE;
-        return;
-    }
-    else if (strstr(line, "[PONG]") != NULL)
-    {
-        FURI_LOG_I(HTTP_TAG, "Received PONG response: Wifi Dev Board is still alive.");
-
-        // send command to connect to WiFi
-        if (fhttp.state == INACTIVE)
-        {
-            fhttp.state = IDLE;
-            return;
-        }
-    }
-
-    if (fhttp.state == INACTIVE && strstr(line, "[PONG]") != NULL)
-    {
-        fhttp.state = IDLE;
-    }
-    else if (fhttp.state == INACTIVE && strstr(line, "[PONG]") == NULL)
-    {
-        fhttp.state = INACTIVE;
-    }
-    else
-    {
-        fhttp.state = IDLE;
-    }
-}
-
 // Function to trim leading and trailing spaces and newlines from a constant string
 static char *trim(const char *str)
 {
@@ -1434,30 +1373,389 @@ static char *trim(const char *str)
     return trimmed_str;
 }
 
+// Function to handle received data asynchronously
+/**
+ * @brief      Callback function to handle received data asynchronously.
+ * @return     void
+ * @param      line     The received line.
+ * @param      context  The FlipperHTTP context.
+ * @note       The received data will be handled asynchronously via the callback and handles the state of the UART.
+ */
+void flipper_http_rx_callback(const char *line, void *context)
+{
+    FlipperHTTP *fhttp = (FlipperHTTP *)context;
+    if (!fhttp)
+    {
+        FURI_LOG_E(HTTP_TAG, "Failed to get context.");
+        return;
+    }
+    if (!line)
+    {
+        FURI_LOG_E(HTTP_TAG, "Invalid arguments provided to flipper_http_rx_callback.");
+        return;
+    }
+
+    // Trim the received line to check if it's empty
+    char *trimmed_line = trim(line);
+    if (trimmed_line != NULL && trimmed_line[0] != '\0')
+    {
+        // if the line is not [GET/END] or [POST/END] or [PUT/END] or [DELETE/END]
+        if (strstr(trimmed_line, "[GET/END]") == NULL &&
+            strstr(trimmed_line, "[POST/END]") == NULL &&
+            strstr(trimmed_line, "[PUT/END]") == NULL &&
+            strstr(trimmed_line, "[DELETE/END]") == NULL)
+        {
+            strncpy(fhttp->last_response, trimmed_line, RX_BUF_SIZE);
+        }
+    }
+    free(trimmed_line); // Free the allocated memory for trimmed_line
+
+    if (fhttp->state != INACTIVE && fhttp->state != ISSUE)
+    {
+        fhttp->state = RECEIVING;
+    }
+
+    // Uncomment below line to log the data received over UART
+    // FURI_LOG_I(HTTP_TAG, "Received UART line: %s", line);
+
+    // Check if we've started receiving data from a GET request
+    if (fhttp->started_receiving_get)
+    {
+        // Restart the timeout timer each time new data is received
+        furi_timer_restart(fhttp->get_timeout_timer, TIMEOUT_DURATION_TICKS);
+
+        if (strstr(line, "[GET/END]") != NULL)
+        {
+            FURI_LOG_I(HTTP_TAG, "GET request completed.");
+            // Stop the timer since we've completed the GET request
+            furi_timer_stop(fhttp->get_timeout_timer);
+            fhttp->started_receiving_get = false;
+            fhttp->just_started_get = false;
+            fhttp->state = IDLE;
+            fhttp->save_bytes = false;
+            fhttp->save_received_data = false;
+
+            if (fhttp->is_bytes_request)
+            {
+                // Search for the binary marker `[GET/END]` in the file buffer
+                const char marker[] = "[GET/END]";
+                const size_t marker_len = sizeof(marker) - 1; // Exclude null terminator
+
+                for (size_t i = 0; i <= fhttp->file_buffer_len - marker_len; i++)
+                {
+                    // Check if the marker is found
+                    if (memcmp(&fhttp->file_buffer[i], marker, marker_len) == 0)
+                    {
+                        // Remove the marker by shifting the remaining data left
+                        size_t remaining_len = fhttp->file_buffer_len - (i + marker_len);
+                        memmove(&fhttp->file_buffer[i], &fhttp->file_buffer[i + marker_len], remaining_len);
+                        fhttp->file_buffer_len -= marker_len;
+                        break;
+                    }
+                }
+
+                // If there is data left in the buffer, append it to the file
+                if (fhttp->file_buffer_len > 0)
+                {
+                    if (!flipper_http_append_to_file(fhttp->file_buffer, fhttp->file_buffer_len, false, fhttp->file_path))
+                    {
+                        FURI_LOG_E(HTTP_TAG, "Failed to append data to file.");
+                    }
+                    fhttp->file_buffer_len = 0;
+                }
+            }
+
+            fhttp->is_bytes_request = false;
+            return;
+        }
+
+        // Append the new line to the existing data
+        if (fhttp->save_received_data &&
+            !flipper_http_append_to_file(
+                line, strlen(line), !fhttp->just_started_get, fhttp->file_path))
+        {
+            FURI_LOG_E(HTTP_TAG, "Failed to append data to file.");
+            fhttp->started_receiving_get = false;
+            fhttp->just_started_get = false;
+            fhttp->state = IDLE;
+            return;
+        }
+
+        if (!fhttp->just_started_get)
+        {
+            fhttp->just_started_get = true;
+        }
+        return;
+    }
+
+    // Check if we've started receiving data from a POST request
+    else if (fhttp->started_receiving_post)
+    {
+        // Restart the timeout timer each time new data is received
+        furi_timer_restart(fhttp->get_timeout_timer, TIMEOUT_DURATION_TICKS);
+
+        if (strstr(line, "[POST/END]") != NULL)
+        {
+            FURI_LOG_I(HTTP_TAG, "POST request completed.");
+            // Stop the timer since we've completed the POST request
+            furi_timer_stop(fhttp->get_timeout_timer);
+            fhttp->started_receiving_post = false;
+            fhttp->just_started_post = false;
+            fhttp->state = IDLE;
+            fhttp->save_bytes = false;
+            fhttp->save_received_data = false;
+
+            if (fhttp->is_bytes_request)
+            {
+                // Search for the binary marker `[POST/END]` in the file buffer
+                const char marker[] = "[POST/END]";
+                const size_t marker_len = sizeof(marker) - 1; // Exclude null terminator
+
+                for (size_t i = 0; i <= fhttp->file_buffer_len - marker_len; i++)
+                {
+                    // Check if the marker is found
+                    if (memcmp(&fhttp->file_buffer[i], marker, marker_len) == 0)
+                    {
+                        // Remove the marker by shifting the remaining data left
+                        size_t remaining_len = fhttp->file_buffer_len - (i + marker_len);
+                        memmove(&fhttp->file_buffer[i], &fhttp->file_buffer[i + marker_len], remaining_len);
+                        fhttp->file_buffer_len -= marker_len;
+                        break;
+                    }
+                }
+
+                // If there is data left in the buffer, append it to the file
+                if (fhttp->file_buffer_len > 0)
+                {
+                    if (!flipper_http_append_to_file(fhttp->file_buffer, fhttp->file_buffer_len, false, fhttp->file_path))
+                    {
+                        FURI_LOG_E(HTTP_TAG, "Failed to append data to file.");
+                    }
+                    fhttp->file_buffer_len = 0;
+                }
+            }
+
+            fhttp->is_bytes_request = false;
+            return;
+        }
+
+        // Append the new line to the existing data
+        if (fhttp->save_received_data &&
+            !flipper_http_append_to_file(
+                line, strlen(line), !fhttp->just_started_post, fhttp->file_path))
+        {
+            FURI_LOG_E(HTTP_TAG, "Failed to append data to file.");
+            fhttp->started_receiving_post = false;
+            fhttp->just_started_post = false;
+            fhttp->state = IDLE;
+            return;
+        }
+
+        if (!fhttp->just_started_post)
+        {
+            fhttp->just_started_post = true;
+        }
+        return;
+    }
+
+    // Check if we've started receiving data from a PUT request
+    else if (fhttp->started_receiving_put)
+    {
+        // Restart the timeout timer each time new data is received
+        furi_timer_restart(fhttp->get_timeout_timer, TIMEOUT_DURATION_TICKS);
+
+        if (strstr(line, "[PUT/END]") != NULL)
+        {
+            FURI_LOG_I(HTTP_TAG, "PUT request completed.");
+            // Stop the timer since we've completed the PUT request
+            furi_timer_stop(fhttp->get_timeout_timer);
+            fhttp->started_receiving_put = false;
+            fhttp->just_started_put = false;
+            fhttp->state = IDLE;
+            fhttp->save_bytes = false;
+            fhttp->is_bytes_request = false;
+            fhttp->save_received_data = false;
+            return;
+        }
+
+        // Append the new line to the existing data
+        if (fhttp->save_received_data &&
+            !flipper_http_append_to_file(
+                line, strlen(line), !fhttp->just_started_put, fhttp->file_path))
+        {
+            FURI_LOG_E(HTTP_TAG, "Failed to append data to file.");
+            fhttp->started_receiving_put = false;
+            fhttp->just_started_put = false;
+            fhttp->state = IDLE;
+            return;
+        }
+
+        if (!fhttp->just_started_put)
+        {
+            fhttp->just_started_put = true;
+        }
+        return;
+    }
+
+    // Check if we've started receiving data from a DELETE request
+    else if (fhttp->started_receiving_delete)
+    {
+        // Restart the timeout timer each time new data is received
+        furi_timer_restart(fhttp->get_timeout_timer, TIMEOUT_DURATION_TICKS);
+
+        if (strstr(line, "[DELETE/END]") != NULL)
+        {
+            FURI_LOG_I(HTTP_TAG, "DELETE request completed.");
+            // Stop the timer since we've completed the DELETE request
+            furi_timer_stop(fhttp->get_timeout_timer);
+            fhttp->started_receiving_delete = false;
+            fhttp->just_started_delete = false;
+            fhttp->state = IDLE;
+            fhttp->save_bytes = false;
+            fhttp->is_bytes_request = false;
+            fhttp->save_received_data = false;
+            return;
+        }
+
+        // Append the new line to the existing data
+        if (fhttp->save_received_data &&
+            !flipper_http_append_to_file(
+                line, strlen(line), !fhttp->just_started_delete, fhttp->file_path))
+        {
+            FURI_LOG_E(HTTP_TAG, "Failed to append data to file.");
+            fhttp->started_receiving_delete = false;
+            fhttp->just_started_delete = false;
+            fhttp->state = IDLE;
+            return;
+        }
+
+        if (!fhttp->just_started_delete)
+        {
+            fhttp->just_started_delete = true;
+        }
+        return;
+    }
+
+    // Handle different types of responses
+    if (strstr(line, "[SUCCESS]") != NULL || strstr(line, "[CONNECTED]") != NULL)
+    {
+        FURI_LOG_I(HTTP_TAG, "Operation succeeded.");
+    }
+    else if (strstr(line, "[INFO]") != NULL)
+    {
+        FURI_LOG_I(HTTP_TAG, "Received info: %s", line);
+
+        if (fhttp->state == INACTIVE && strstr(line, "[INFO] Already connected to Wifi.") != NULL)
+        {
+            fhttp->state = IDLE;
+        }
+    }
+    else if (strstr(line, "[GET/SUCCESS]") != NULL)
+    {
+        FURI_LOG_I(HTTP_TAG, "GET request succeeded.");
+        fhttp->started_receiving_get = true;
+        furi_timer_start(fhttp->get_timeout_timer, TIMEOUT_DURATION_TICKS);
+        fhttp->state = RECEIVING;
+        // for GET request, save data only if it's a bytes request
+        fhttp->save_bytes = fhttp->is_bytes_request;
+        fhttp->just_started_bytes = true;
+        fhttp->file_buffer_len = 0;
+        return;
+    }
+    else if (strstr(line, "[POST/SUCCESS]") != NULL)
+    {
+        FURI_LOG_I(HTTP_TAG, "POST request succeeded.");
+        fhttp->started_receiving_post = true;
+        furi_timer_start(fhttp->get_timeout_timer, TIMEOUT_DURATION_TICKS);
+        fhttp->state = RECEIVING;
+        // for POST request, save data only if it's a bytes request
+        fhttp->save_bytes = fhttp->is_bytes_request;
+        fhttp->just_started_bytes = true;
+        fhttp->file_buffer_len = 0;
+        return;
+    }
+    else if (strstr(line, "[PUT/SUCCESS]") != NULL)
+    {
+        FURI_LOG_I(HTTP_TAG, "PUT request succeeded.");
+        fhttp->started_receiving_put = true;
+        furi_timer_start(fhttp->get_timeout_timer, TIMEOUT_DURATION_TICKS);
+        fhttp->state = RECEIVING;
+        return;
+    }
+    else if (strstr(line, "[DELETE/SUCCESS]") != NULL)
+    {
+        FURI_LOG_I(HTTP_TAG, "DELETE request succeeded.");
+        fhttp->started_receiving_delete = true;
+        furi_timer_start(fhttp->get_timeout_timer, TIMEOUT_DURATION_TICKS);
+        fhttp->state = RECEIVING;
+        return;
+    }
+    else if (strstr(line, "[DISCONNECTED]") != NULL)
+    {
+        FURI_LOG_I(HTTP_TAG, "WiFi disconnected successfully.");
+    }
+    else if (strstr(line, "[ERROR]") != NULL)
+    {
+        FURI_LOG_E(HTTP_TAG, "Received error: %s", line);
+        fhttp->state = ISSUE;
+        return;
+    }
+    else if (strstr(line, "[PONG]") != NULL)
+    {
+        FURI_LOG_I(HTTP_TAG, "Received PONG response: Wifi Dev Board is still alive.");
+
+        // send command to connect to WiFi
+        if (fhttp->state == INACTIVE)
+        {
+            fhttp->state = IDLE;
+            return;
+        }
+    }
+
+    if (fhttp->state == INACTIVE && strstr(line, "[PONG]") != NULL)
+    {
+        fhttp->state = IDLE;
+    }
+    else if (fhttp->state == INACTIVE && strstr(line, "[PONG]") == NULL)
+    {
+        fhttp->state = INACTIVE;
+    }
+    else
+    {
+        fhttp->state = IDLE;
+    }
+}
+
 /**
  * @brief Process requests and parse JSON data asynchronously
+ * @param fhttp The FlipperHTTP context
  * @param http_request The function to send the request
  * @param parse_json The function to parse the JSON
  * @return true if successful, false otherwise
  */
-bool flipper_http_process_response_async(bool (*http_request)(void), bool (*parse_json)(void))
+bool flipper_http_process_response_async(FlipperHTTP *fhttp, bool (*http_request)(void), bool (*parse_json)(void))
 {
+    if (!fhttp)
+    {
+        FURI_LOG_E(HTTP_TAG, "Failed to get context.");
+        return false;
+    }
     if (http_request()) // start the async request
     {
-        furi_timer_start(fhttp.get_timeout_timer, TIMEOUT_DURATION_TICKS);
-        fhttp.state = RECEIVING;
+        furi_timer_start(fhttp->get_timeout_timer, TIMEOUT_DURATION_TICKS);
+        fhttp->state = RECEIVING;
     }
     else
     {
         FURI_LOG_E(HTTP_TAG, "Failed to send request");
         return false;
     }
-    while (fhttp.state == RECEIVING && furi_timer_is_running(fhttp.get_timeout_timer) > 0)
+    while (fhttp->state == RECEIVING && furi_timer_is_running(fhttp->get_timeout_timer) > 0)
     {
         // Wait for the request to be received
         furi_delay_ms(100);
     }
-    furi_timer_stop(fhttp.get_timeout_timer);
+    furi_timer_stop(fhttp->get_timeout_timer);
     if (!parse_json()) // parse the JSON before switching to the view (synchonous)
     {
         FURI_LOG_E(HTTP_TAG, "Failed to parse the JSON...");
@@ -1468,6 +1766,7 @@ bool flipper_http_process_response_async(bool (*http_request)(void), bool (*pars
 
 /**
  * @brief Perform a task while displaying a loading screen
+ * @param fhttp The FlipperHTTP context
  * @param http_request The function to send the request
  * @param parse_response The function to parse the response
  * @param success_view_id The view ID to switch to on success
@@ -1475,12 +1774,23 @@ bool flipper_http_process_response_async(bool (*http_request)(void), bool (*pars
  * @param view_dispatcher The view dispatcher to use
  * @return
  */
-void flipper_http_loading_task(bool (*http_request)(void),
+void flipper_http_loading_task(FlipperHTTP *fhttp,
+                               bool (*http_request)(void),
                                bool (*parse_response)(void),
                                uint32_t success_view_id,
                                uint32_t failure_view_id,
                                ViewDispatcher **view_dispatcher)
 {
+    if (!fhttp)
+    {
+        FURI_LOG_E(HTTP_TAG, "Failed to get context.");
+        return;
+    }
+    if (fhttp->state == INACTIVE)
+    {
+        view_dispatcher_switch_to_view(*view_dispatcher, failure_view_id);
+        return;
+    }
     Loading *loading;
     int32_t loading_view_id = 987654321; // Random ID
 
@@ -1499,7 +1809,7 @@ void flipper_http_loading_task(bool (*http_request)(void),
     view_dispatcher_switch_to_view(*view_dispatcher, loading_view_id);
 
     // Make the request
-    if (!flipper_http_process_response_async(http_request, parse_response))
+    if (!flipper_http_process_response_async(fhttp, http_request, parse_response))
     {
         FURI_LOG_E(HTTP_TAG, "Failed to make request");
         view_dispatcher_switch_to_view(*view_dispatcher, failure_view_id);
@@ -1512,5 +1822,5 @@ void flipper_http_loading_task(bool (*http_request)(void),
     // Switch to the success view
     view_dispatcher_switch_to_view(*view_dispatcher, success_view_id);
     view_dispatcher_remove_view(*view_dispatcher, loading_view_id);
-    loading_free(loading);
+    loading_free(loading); // comment this out if you experience a freeze
 }

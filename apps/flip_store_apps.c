@@ -3,36 +3,53 @@
 FlipStoreAppInfo *flip_catalog = NULL;
 
 uint32_t app_selected_index = 0;
-bool flip_store_sent_request = false;
-bool flip_store_success = false;
-bool flip_store_saved_data = false;
-bool flip_store_saved_success = false;
 uint32_t flip_store_category_index = 0;
+int catalog_iteration = 0;
 
 // define the list of categories
+char *category_ids[] = {
+    "64a69817effe1f448a4053b4", // "Bluetooth",
+    "64971d11be1a76c06747de2f", // "Games",
+    "64971d106617ba37a4bc79b9", // "GPIO",
+    "64971d106617ba37a4bc79b6", // "Infrared",
+    "64971d11be1a76c06747de29", // "iButton",
+    "64971d116617ba37a4bc79bc", // "Media",
+    "64971d10be1a76c06747de26", // "NFC",
+    "64971d10577d519190ede5c2", // "RFID",
+    "64971d0f6617ba37a4bc79b3", // "Sub-GHz",
+    "64971d11577d519190ede5c5", // "Tools",
+    "64971d11be1a76c06747de2c", // "USB",
+};
+
 char *categories[] = {
-    "Bluetooth",
-    "Games",
-    "GPIO",
-    "Infrared",
-    "iButton",
-    "Media",
-    "NFC",
-    "RFID",
-    "Sub-GHz",
-    "Tools",
-    "USB",
+    "Bluetooth", // "64a69817effe1f448a4053b4"
+    "Games",     // "64971d11be1a76c06747de2f"
+    "GPIO",      // "64971d106617ba37a4bc79b9"
+    "Infrared",  // "64971d106617ba37a4bc79b6"
+    "iButton",   // "64971d11be1a76c06747de29"
+    "Media",     // "64971d116617ba37a4bc79bc"
+    "NFC",       // "64971d10be1a76c06747de26"
+    "RFID",      // "64971d10577d519190ede5c2"
+    "Sub-GHz",   // "64971d0f6617ba37a4bc79b3"
+    "Tools",     // "64971d11577d519190ede5c5"
+    "USB",       // "64971d11be1a76c06747de2c"
 };
 
 FlipStoreAppInfo *flip_catalog_alloc()
 {
+    if (memmgr_get_free_heap() < MAX_APP_COUNT * sizeof(FlipStoreAppInfo))
+    {
+        FURI_LOG_E(TAG, "Not enough memory to allocate flip_catalog.");
+        return NULL;
+    }
     FlipStoreAppInfo *app_catalog = malloc(MAX_APP_COUNT * sizeof(FlipStoreAppInfo));
     if (!app_catalog)
     {
         FURI_LOG_E(TAG, "Failed to allocate memory for flip_catalog.");
         return NULL;
     }
-    // No need for a loop since all memory is allocated in one block
+    app_catalog->count = 0;
+    app_catalog->iteration = catalog_iteration;
     return app_catalog;
 }
 
@@ -41,11 +58,17 @@ void flip_catalog_free()
     if (flip_catalog)
     {
         free(flip_catalog);
+        flip_catalog = NULL;
     }
 }
 
-bool flip_store_process_app_list()
+bool flip_store_process_app_list(FlipperHTTP *fhttp)
 {
+    if (!fhttp)
+    {
+        FURI_LOG_E(TAG, "FlipperHTTP is NULL.");
+        return false;
+    }
     // Initialize the flip_catalog
     flip_catalog = flip_catalog_alloc();
     if (!flip_catalog)
@@ -54,256 +77,137 @@ bool flip_store_process_app_list()
         return false;
     }
 
-    FuriString *feed_data = flipper_http_load_from_file(fhttp.file_path);
+    FuriString *feed_data = flipper_http_load_from_file(fhttp->file_path);
     if (feed_data == NULL)
     {
         FURI_LOG_E(TAG, "Failed to load received data from file.");
         return false;
     }
 
-    // free the resources
-    flipper_http_deinit();
-
-    char *data_cstr = (char *)furi_string_get_cstr(feed_data);
-    if (data_cstr == NULL)
+    FuriString *json_data_str = furi_string_alloc();
+    if (!json_data_str)
     {
-        FURI_LOG_E(TAG, "Failed to get C-string from FuriString.");
+        FURI_LOG_E("Game", "Failed to allocate json_data string");
+        return NULL;
+    }
+    furi_string_cat_str(json_data_str, "{\"json_data\":");
+    if (memmgr_get_free_heap() < furi_string_size(feed_data) + furi_string_size(json_data_str) + 2)
+    {
+        FURI_LOG_E(TAG, "Not enough memory to allocate json_data_str.");
         furi_string_free(feed_data);
+        furi_string_free(json_data_str);
         return false;
     }
-
-    // Parser state variables
-    bool in_string = false;
-    bool is_escaped = false;
-    bool reading_key = false;
-    bool reading_value = false;
-    bool inside_app_object = false;
-    bool found_name = false, found_id = false, found_build_id = false, found_version = false, found_description = false;
-    char current_key[MAX_KEY_LENGTH] = {0};
-    size_t key_index = 0;
-    char current_value[MAX_VALUE_LENGTH] = {0};
-    size_t value_index = 0;
-    int app_count = 0;
-    enum ObjectState object_state = OBJECT_EXPECT_KEY;
-    enum
-    {
-        STATE_SEARCH_APPS_KEY,
-        STATE_SEARCH_ARRAY_START,
-        STATE_READ_ARRAY_ELEMENTS,
-        STATE_DONE
-    } state = STATE_SEARCH_APPS_KEY;
-
-    // Iterate through the data
-    for (size_t i = 0; data_cstr[i] != '\0' && state != STATE_DONE; ++i)
-    {
-        char c = data_cstr[i];
-
-        if (is_escaped)
-        {
-            is_escaped = false;
-            if (reading_key && key_index < MAX_KEY_LENGTH - 1)
-            {
-                current_key[key_index++] = c;
-            }
-            else if (reading_value && value_index < MAX_VALUE_LENGTH - 1)
-            {
-                current_value[value_index++] = c;
-            }
-            continue;
-        }
-
-        if (c == '\\')
-        {
-            is_escaped = true;
-            continue;
-        }
-
-        if (c == '\"')
-        {
-            in_string = !in_string;
-            if (in_string)
-            {
-                if (!reading_key && !reading_value)
-                {
-                    if (state == STATE_SEARCH_APPS_KEY || object_state == OBJECT_EXPECT_KEY)
-                    {
-                        reading_key = true;
-                        key_index = 0;
-                        current_key[0] = '\0';
-                    }
-                    else if (object_state == OBJECT_EXPECT_VALUE)
-                    {
-                        reading_value = true;
-                        value_index = 0;
-                        current_value[0] = '\0';
-                    }
-                }
-            }
-            else
-            {
-                if (reading_key)
-                {
-                    reading_key = false;
-                    current_key[key_index] = '\0';
-                    if (state == STATE_SEARCH_APPS_KEY && strcmp(current_key, "apps") == 0)
-                    {
-                        state = STATE_SEARCH_ARRAY_START;
-                    }
-                    else if (inside_app_object)
-                    {
-                        object_state = OBJECT_EXPECT_COLON;
-                    }
-                }
-                else if (reading_value)
-                {
-                    reading_value = false;
-                    current_value[value_index] = '\0';
-
-                    if (inside_app_object)
-                    {
-                        if (strcmp(current_key, "name") == 0)
-                        {
-                            snprintf(flip_catalog[app_count].app_name, MAX_APP_NAME_LENGTH, "%.31s", current_value);
-                            found_name = true;
-                        }
-                        else if (strcmp(current_key, "id") == 0)
-                        {
-                            snprintf(flip_catalog[app_count].app_id, MAX_ID_LENGTH, "%.31s", current_value);
-                            found_id = true;
-                        }
-                        else if (strcmp(current_key, "build_id") == 0)
-                        {
-                            snprintf(flip_catalog[app_count].app_build_id, MAX_ID_LENGTH, "%.31s", current_value);
-                            found_build_id = true;
-                        }
-                        else if (strcmp(current_key, "version") == 0)
-                        {
-                            snprintf(flip_catalog[app_count].app_version, MAX_APP_VERSION_LENGTH, "%.3s", current_value);
-                            found_version = true;
-                        }
-                        else if (strcmp(current_key, "description") == 0)
-                        {
-                            snprintf(flip_catalog[app_count].app_description, MAX_APP_DESCRIPTION_LENGTH, "%.99s", current_value);
-                            found_description = true;
-                        }
-
-                        if (found_name && found_id && found_build_id && found_version && found_description)
-                        {
-                            app_count++;
-                            if (app_count >= MAX_APP_COUNT)
-                            {
-                                FURI_LOG_I(TAG, "Reached maximum app count.");
-                                state = STATE_DONE;
-                                break;
-                            }
-
-                            found_name = found_id = found_build_id = found_version = found_description = false;
-                        }
-
-                        object_state = OBJECT_EXPECT_COMMA_OR_END;
-                    }
-                }
-            }
-            continue;
-        }
-
-        if (in_string)
-        {
-            if (reading_key && key_index < MAX_KEY_LENGTH - 1)
-            {
-                current_key[key_index++] = c;
-            }
-            else if (reading_value && value_index < MAX_VALUE_LENGTH - 1)
-            {
-                current_value[value_index++] = c;
-            }
-            continue;
-        }
-
-        if (state == STATE_SEARCH_ARRAY_START && c == '[')
-        {
-            state = STATE_READ_ARRAY_ELEMENTS;
-            continue;
-        }
-
-        if (state == STATE_READ_ARRAY_ELEMENTS)
-        {
-            if (c == '{')
-            {
-                inside_app_object = true;
-                object_state = OBJECT_EXPECT_KEY;
-            }
-            else if (c == '}')
-            {
-                inside_app_object = false;
-            }
-            else if (c == ':')
-            {
-                object_state = OBJECT_EXPECT_VALUE;
-            }
-            else if (c == ',')
-            {
-                object_state = OBJECT_EXPECT_KEY;
-            }
-            else if (c == ']')
-            {
-                state = STATE_DONE;
-                break;
-            }
-        }
-    }
-
-    // Clean up
+    furi_string_cat(json_data_str, feed_data);
     furi_string_free(feed_data);
-    free(data_cstr);
-    return app_count > 0;
+    furi_string_cat_str(json_data_str, "}");
+
+    flip_catalog->count = 0;
+
+    // parse the JSON data
+    for (int i = 0; i < MAX_APP_COUNT; i++)
+    {
+        FuriString *json_data_array = get_json_array_value_furi("json_data", i, json_data_str);
+        if (!json_data_array)
+        {
+            break;
+        }
+
+        FuriString *app_id = get_json_value_furi("alias", json_data_array);
+        if (!app_id)
+        {
+            FURI_LOG_E(TAG, "Failed to get app_id.");
+            furi_string_free(json_data_array);
+            break;
+        }
+        snprintf(flip_catalog[i].app_id, MAX_ID_LENGTH, "%s", furi_string_get_cstr(app_id));
+        furi_string_free(app_id);
+
+        FuriString *current_version = get_json_value_furi("current_version", json_data_array);
+        if (!current_version)
+        {
+            FURI_LOG_E(TAG, "Failed to get current_version.");
+            furi_string_free(json_data_array);
+            break;
+        }
+
+        FuriString *app_name = get_json_value_furi("name", current_version);
+        if (!app_name)
+        {
+            FURI_LOG_E(TAG, "Failed to get app_name.");
+            furi_string_free(json_data_array);
+            furi_string_free(current_version);
+            break;
+        }
+        snprintf(flip_catalog[i].app_name, MAX_APP_NAME_LENGTH, "%s", furi_string_get_cstr(app_name));
+        furi_string_free(app_name);
+
+        FuriString *app_description = get_json_value_furi("short_description", current_version);
+        if (!app_description)
+        {
+            FURI_LOG_E(TAG, "Failed to get app_description.");
+            furi_string_free(json_data_array);
+            furi_string_free(current_version);
+            break;
+        }
+        snprintf(flip_catalog[i].app_description, MAX_APP_DESCRIPTION_LENGTH, "%s", furi_string_get_cstr(app_description));
+        furi_string_free(app_description);
+
+        FuriString *app_version = get_json_value_furi("version", current_version);
+        if (!app_version)
+        {
+            FURI_LOG_E(TAG, "Failed to get app_version.");
+            furi_string_free(json_data_array);
+            furi_string_free(current_version);
+            break;
+        }
+        snprintf(flip_catalog[i].app_version, MAX_APP_VERSION_LENGTH, "%s", furi_string_get_cstr(app_version));
+        furi_string_free(app_version);
+
+        FuriString *_id = get_json_value_furi("_id", current_version);
+        if (!_id)
+        {
+            FURI_LOG_E(TAG, "Failed to get _id.");
+            furi_string_free(json_data_array);
+            furi_string_free(current_version);
+            break;
+        }
+        snprintf(flip_catalog[i].app_build_id, MAX_ID_LENGTH, "%s", furi_string_get_cstr(_id));
+        furi_string_free(_id);
+
+        flip_catalog->count++;
+        furi_string_free(json_data_array);
+        furi_string_free(current_version);
+    }
+
+    furi_string_free(json_data_str);
+    return flip_catalog->count > 0;
 }
 
-bool flip_store_get_fap_file(char *build_id, uint8_t target, uint16_t api_major, uint16_t api_minor)
+static bool flip_store_get_fap_file(FlipperHTTP *fhttp, char *build_id, uint8_t target, uint16_t api_major, uint16_t api_minor)
 {
-    if (!app_instance)
+    if (!fhttp || !build_id)
     {
-        FURI_LOG_E(TAG, "FlipStoreApp is NULL");
+        FURI_LOG_E(TAG, "FlipperHTTP or build_id is NULL.");
         return false;
     }
-    // initialize the http
-    if (!flipper_http_init(flipper_http_rx_callback, app_instance))
-    {
-        FURI_LOG_E(TAG, "Failed to initialize FlipperHTTP.");
-        return false;
-    }
-    fhttp.state = IDLE;
-    char url[128];
-    fhttp.save_received_data = false;
-    fhttp.is_bytes_request = true;
+    char url[256];
+    fhttp->save_received_data = false;
+    fhttp->is_bytes_request = true;
     snprintf(url, sizeof(url), "https://catalog.flipperzero.one/api/v0/application/version/%s/build/compatible?target=f%d&api=%d.%d", build_id, target, api_major, api_minor);
-    return flipper_http_get_request_bytes(url, "{\"Content-Type\": \"application/octet-stream\"}");
+    return flipper_http_get_request_bytes(fhttp, url, "{\"Content-Type\": \"application/octet-stream\"}");
 }
 
-bool flip_store_install_app(char *category)
+bool flip_store_install_app(FlipperHTTP *fhttp, char *category)
 {
-    // create /apps/FlipStore directory if it doesn't exist
-    char directory_path[128];
-    snprintf(directory_path, sizeof(directory_path), STORAGE_EXT_PATH_PREFIX "/apps/%s", category);
-
-    // Create the directory
-    Storage *storage = furi_record_open(RECORD_STORAGE);
-    storage_common_mkdir(storage, directory_path);
-
-    snprintf(fhttp.file_path, sizeof(fhttp.file_path), STORAGE_EXT_PATH_PREFIX "/apps/%s/%s.fap", category, flip_catalog[app_selected_index].app_id);
-
+    if (!fhttp || !category)
+    {
+        FURI_LOG_E(TAG, "FlipperHTTP or category is NULL.");
+        return false;
+    }
+    snprintf(fhttp->file_path, sizeof(fhttp->file_path), STORAGE_EXT_PATH_PREFIX "/apps/%s/%s.fap", category, flip_catalog[app_selected_index].app_id);
     uint8_t target = furi_hal_version_get_hw_target();
     uint16_t api_major, api_minor;
     furi_hal_info_get_api_version(&api_major, &api_minor);
-    if (fhttp.state != INACTIVE && flip_store_get_fap_file(flip_catalog[app_selected_index].app_build_id, target, api_major, api_minor))
-    {
-        fhttp.state = RECEIVING;
-        return true;
-    }
-    else
-    {
-        FURI_LOG_E(TAG, "Failed to send the request");
-        flip_store_success = false;
-        return false;
-    }
+    return flip_store_get_fap_file(fhttp, flip_catalog[app_selected_index].app_build_id, target, api_major, api_minor);
 }

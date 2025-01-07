@@ -35,4 +35,6 @@ bool load_char(
     char *value,
     size_t value_size);
 
+bool save_char_with_path(const char *full_path, const char *value);
+
 #endif

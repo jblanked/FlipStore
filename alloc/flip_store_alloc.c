@@ -38,7 +38,11 @@ FlipStoreApp *flip_store_app_alloc()
     {
         return NULL;
     }
-    if (!easy_flipper_set_submenu(&app->submenu_firmwares, FlipStoreViewFirmwares, "ESP32 Firmwares", callback_to_submenu_options, &app->view_dispatcher))
+    if (!easy_flipper_set_submenu(&app->submenu_firmwares, FlipStoreViewFirmwares, "ESP32 Firmware", callback_to_submenu_options, &app->view_dispatcher))
+    {
+        return NULL;
+    }
+    if (!easy_flipper_set_submenu(&app->submenu_vgm_firmwares, FlipStoreViewVGMFirmwares, "VGM Firmware", callback_to_submenu_options, &app->view_dispatcher))
     {
         return NULL;
     }
@@ -49,8 +53,9 @@ FlipStoreApp *flip_store_app_alloc()
     submenu_add_item(app->submenu_main, "Settings", FlipStoreSubmenuIndexSettings, callback_submenu_choices, app);
     //
     submenu_add_item(app->submenu_options, "App Catalog", FlipStoreSubmenuIndexAppList, callback_submenu_choices, app);
-    submenu_add_item(app->submenu_options, "ESP32 Firmwares", FlipStoreSubmenuIndexFirmwares, callback_submenu_choices, app);
-
+    submenu_add_item(app->submenu_options, "ESP32 Firmware", FlipStoreSubmenuIndexFirmwares, callback_submenu_choices, app);
+    submenu_add_item(app->submenu_options, "VGM Firmware", FlipStoreSubmenuIndexVGMFirmwares, callback_submenu_choices, app);
+    submenu_add_item(app->submenu_options, "GitHub Repository", FlipStoreSubmenuIndexGitHub, callback_submenu_choices, app);
     //
     submenu_add_item(app->submenu_app_list, "Bluetooth", FlipStoreSubmenuIndexAppListBluetooth, callback_submenu_choices, app);
     submenu_add_item(app->submenu_app_list, "Games", FlipStoreSubmenuIndexAppListGames, callback_submenu_choices, app);

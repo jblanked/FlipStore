@@ -1,6 +1,8 @@
-// flipper_http.h
-#ifndef FLIPPER_HTTP_H
-#define FLIPPER_HTTP_H
+// Description: Flipper HTTP API (For use with Flipper Zero and the FlipperHTTP flash: https://github.com/jblanked/FlipperHTTP)
+// License: MIT
+// Author: JBlanked
+// File: flipper_http.h
+#pragma once
 
 #include <gui/gui.h>
 #include <gui/view.h>
@@ -20,8 +22,8 @@
 #define TIMEOUT_DURATION_TICKS (5 * 1000) // 5 seconds
 #define BAUDRATE (115200)                 // UART baudrate
 #define RX_BUF_SIZE 2048                  // UART RX buffer size
-#define RX_LINE_BUFFER_SIZE 8192          // UART RX line buffer size (increase for large responses)
-#define MAX_FILE_SHOW 8192                // Maximum data from file to show
+#define RX_LINE_BUFFER_SIZE 2048          // UART RX line buffer size (increase for large responses)
+#define MAX_FILE_SHOW 12000               // Maximum data from file to show
 #define FILE_BUFFER_SIZE 512              // File buffer size
 
 // Forward declaration for callback
@@ -88,8 +90,6 @@ typedef struct
     size_t file_buffer_len;
 } FlipperHTTP;
 
-extern FlipperHTTP fhttp;
-
 // fhttp.last_response holds the last received data from the UART
 
 // Function to append received data to file
@@ -101,6 +101,7 @@ bool flipper_http_append_to_file(
     char *file_path);
 
 FuriString *flipper_http_load_from_file(char *file_path);
+FuriString *flipper_http_load_from_file_with_limit(char *file_path, size_t limit);
 
 // UART worker thread
 /**
@@ -138,172 +139,189 @@ void _flipper_http_rx_callback(
 // UART initialization function
 /**
  * @brief      Initialize UART.
- * @return     true if the UART was initialized successfully, false otherwise.
- * @param      callback  The callback function to handle received data (ex. flipper_http_rx_callback).
- * @param      context   The context to pass to the callback.
+ * @return     FlipperHTTP context if the UART was initialized successfully, NULL otherwise.
  * @note       The received data will be handled asynchronously via the callback.
  */
-bool flipper_http_init(FlipperHTTP_Callback callback, void *context);
+FlipperHTTP *flipper_http_alloc();
 
 // Deinitialize UART
 /**
  * @brief      Deinitialize UART.
  * @return     void
+ * @param fhttp The FlipperHTTP context
  * @note       This function will stop the asynchronous RX, release the serial handle, and free the resources.
  */
-void flipper_http_deinit();
+void flipper_http_free(FlipperHTTP *fhttp);
 
 // Function to send data over UART with newline termination
 /**
  * @brief      Send data over UART with newline termination.
  * @return     true if the data was sent successfully, false otherwise.
+ * @param fhttp The FlipperHTTP context
  * @param      data  The data to send over UART.
  * @note       The data will be sent over UART with a newline character appended.
  */
-bool flipper_http_send_data(const char *data);
+bool flipper_http_send_data(FlipperHTTP *fhttp, const char *data);
 
 // Function to send a PING request
 /**
  * @brief      Send a PING request to check if the Wifi Dev Board is connected.
  * @return     true if the request was successful, false otherwise.
+ * @param fhttp The FlipperHTTP context
  * @note       The received data will be handled asynchronously via the callback.
  * @note       This is best used to check if the Wifi Dev Board is connected.
  * @note       The state will remain INACTIVE until a PONG is received.
  */
-bool flipper_http_ping();
+bool flipper_http_ping(FlipperHTTP *fhttp);
 
 // Function to list available commands
 /**
  * @brief      Send a command to list available commands.
  * @return     true if the request was successful, false otherwise.
+ * @param fhttp The FlipperHTTP context
  * @note       The received data will be handled asynchronously via the callback.
  */
-bool flipper_http_list_commands();
+bool flipper_http_list_commands(FlipperHTTP *fhttp);
 
 // Function to turn on the LED
 /**
  * @brief      Allow the LED to display while processing.
  * @return     true if the request was successful, false otherwise.
+ * @param fhttp The FlipperHTTP context
  * @note       The received data will be handled asynchronously via the callback.
  */
-bool flipper_http_led_on();
+bool flipper_http_led_on(FlipperHTTP *fhttp);
 
 // Function to turn off the LED
 /**
  * @brief      Disable the LED from displaying while processing.
  * @return     true if the request was successful, false otherwise.
+ * @param fhttp The FlipperHTTP context
  * @note       The received data will be handled asynchronously via the callback.
  */
-bool flipper_http_led_off();
+bool flipper_http_led_off(FlipperHTTP *fhttp);
 
 // Function to parse JSON data
 /**
  * @brief      Parse JSON data.
  * @return     true if the JSON data was parsed successfully, false otherwise.
+ * @param fhttp The FlipperHTTP context
  * @param      key       The key to parse from the JSON data.
  * @param      json_data The JSON data to parse.
  * @note       The received data will be handled asynchronously via the callback.
  */
-bool flipper_http_parse_json(const char *key, const char *json_data);
+bool flipper_http_parse_json(FlipperHTTP *fhttp, const char *key, const char *json_data);
 
 // Function to parse JSON array data
 /**
  * @brief      Parse JSON array data.
  * @return     true if the JSON array data was parsed successfully, false otherwise.
+ * @param fhttp The FlipperHTTP context
  * @param      key       The key to parse from the JSON array data.
  * @param      index     The index to parse from the JSON array data.
  * @param      json_data The JSON array data to parse.
  * @note       The received data will be handled asynchronously via the callback.
  */
-bool flipper_http_parse_json_array(const char *key, int index, const char *json_data);
+bool flipper_http_parse_json_array(FlipperHTTP *fhttp, const char *key, int index, const char *json_data);
 
 // Function to scan for WiFi networks
 /**
  * @brief      Send a command to scan for WiFi networks.
  * @return     true if the request was successful, false otherwise.
+ * @param fhttp The FlipperHTTP context
  * @note       The received data will be handled asynchronously via the callback.
  */
-bool flipper_http_scan_wifi();
+bool flipper_http_scan_wifi(FlipperHTTP *fhttp);
 
 // Function to save WiFi settings (returns true if successful)
 /**
  * @brief      Send a command to save WiFi settings.
  * @return     true if the request was successful, false otherwise.
+ * @param fhttp The FlipperHTTP context
  * @note       The received data will be handled asynchronously via the callback.
  */
-bool flipper_http_save_wifi(const char *ssid, const char *password);
+bool flipper_http_save_wifi(FlipperHTTP *fhttp, const char *ssid, const char *password);
 
 // Function to get IP address of WiFi Devboard
 /**
  * @brief      Send a command to get the IP address of the WiFi Devboard
  * @return     true if the request was successful, false otherwise.
+ * @param fhttp The FlipperHTTP context
  * @note       The received data will be handled asynchronously via the callback.
  */
-bool flipper_http_ip_address();
+bool flipper_http_ip_address(FlipperHTTP *fhttp);
 
 // Function to get IP address of the connected WiFi network
 /**
  * @brief      Send a command to get the IP address of the connected WiFi network.
  * @return     true if the request was successful, false otherwise.
+ * @param fhttp The FlipperHTTP context
  * @note       The received data will be handled asynchronously via the callback.
  */
-bool flipper_http_ip_wifi();
+bool flipper_http_ip_wifi(FlipperHTTP *fhttp);
 
 // Function to disconnect from WiFi (returns true if successful)
 /**
  * @brief      Send a command to disconnect from WiFi.
  * @return     true if the request was successful, false otherwise.
+ * @param fhttp The FlipperHTTP context
  * @note       The received data will be handled asynchronously via the callback.
  */
-bool flipper_http_disconnect_wifi();
+bool flipper_http_disconnect_wifi(FlipperHTTP *fhttp);
 
 // Function to connect to WiFi (returns true if successful)
 /**
  * @brief      Send a command to connect to WiFi.
  * @return     true if the request was successful, false otherwise.
+ * @param fhttp The FlipperHTTP context
  * @note       The received data will be handled asynchronously via the callback.
  */
-bool flipper_http_connect_wifi();
+bool flipper_http_connect_wifi(FlipperHTTP *fhttp);
 
 // Function to send a GET request
 /**
  * @brief      Send a GET request to the specified URL.
  * @return     true if the request was successful, false otherwise.
+ * @param fhttp The FlipperHTTP context
  * @param      url  The URL to send the GET request to.
  * @note       The received data will be handled asynchronously via the callback.
  */
-bool flipper_http_get_request(const char *url);
+bool flipper_http_get_request(FlipperHTTP *fhttp, const char *url);
 
 // Function to send a GET request with headers
 /**
  * @brief      Send a GET request to the specified URL.
  * @return     true if the request was successful, false otherwise.
+ * @param fhttp The FlipperHTTP context
  * @param      url  The URL to send the GET request to.
  * @param      headers  The headers to send with the GET request.
  * @note       The received data will be handled asynchronously via the callback.
  */
-bool flipper_http_get_request_with_headers(const char *url, const char *headers);
+bool flipper_http_get_request_with_headers(FlipperHTTP *fhttp, const char *url, const char *headers);
 
 // Function to send a GET request with headers and return bytes
 /**
  * @brief      Send a GET request to the specified URL.
  * @return     true if the request was successful, false otherwise.
+ * @param fhttp The FlipperHTTP context
  * @param      url  The URL to send the GET request to.
  * @param      headers  The headers to send with the GET request.
  * @note       The received data will be handled asynchronously via the callback.
  */
-bool flipper_http_get_request_bytes(const char *url, const char *headers);
+bool flipper_http_get_request_bytes(FlipperHTTP *fhttp, const char *url, const char *headers);
 
 // Function to send a POST request with headers
 /**
  * @brief      Send a POST request to the specified URL.
  * @return     true if the request was successful, false otherwise.
+ * @param fhttp The FlipperHTTP context
  * @param      url  The URL to send the POST request to.
  * @param      headers  The headers to send with the POST request.
  * @param      data  The data to send with the POST request.
  * @note       The received data will be handled asynchronously via the callback.
  */
 bool flipper_http_post_request_with_headers(
+    FlipperHTTP *fhttp,
     const char *url,
     const char *headers,
     const char *payload);
@@ -312,23 +330,26 @@ bool flipper_http_post_request_with_headers(
 /**
  * @brief      Send a POST request to the specified URL.
  * @return     true if the request was successful, false otherwise.
+ * @param fhttp The FlipperHTTP context
  * @param      url  The URL to send the POST request to.
  * @param      headers  The headers to send with the POST request.
  * @param      payload  The data to send with the POST request.
  * @note       The received data will be handled asynchronously via the callback.
  */
-bool flipper_http_post_request_bytes(const char *url, const char *headers, const char *payload);
+bool flipper_http_post_request_bytes(FlipperHTTP *fhttp, const char *url, const char *headers, const char *payload);
 
 // Function to send a PUT request with headers
 /**
  * @brief      Send a PUT request to the specified URL.
  * @return     true if the request was successful, false otherwise.
+ * @param fhttp The FlipperHTTP context
  * @param      url  The URL to send the PUT request to.
  * @param      headers  The headers to send with the PUT request.
  * @param      data  The data to send with the PUT request.
  * @note       The received data will be handled asynchronously via the callback.
  */
 bool flipper_http_put_request_with_headers(
+    FlipperHTTP *fhttp,
     const char *url,
     const char *headers,
     const char *payload);
@@ -337,12 +358,14 @@ bool flipper_http_put_request_with_headers(
 /**
  * @brief      Send a DELETE request to the specified URL.
  * @return     true if the request was successful, false otherwise.
+ * @param fhttp The FlipperHTTP context
  * @param      url  The URL to send the DELETE request to.
  * @param      headers  The headers to send with the DELETE request.
  * @param      data  The data to send with the DELETE request.
  * @note       The received data will be handled asynchronously via the callback.
  */
 bool flipper_http_delete_request_with_headers(
+    FlipperHTTP *fhttp,
     const char *url,
     const char *headers,
     const char *payload);
@@ -352,21 +375,23 @@ bool flipper_http_delete_request_with_headers(
  * @brief      Callback function to handle received data asynchronously.
  * @return     void
  * @param      line     The received line.
- * @param      context  The context passed to the callback.
+ * @param      context  The FlipperHTTP context.
  * @note       The received data will be handled asynchronously via the callback and handles the state of the UART.
  */
 void flipper_http_rx_callback(const char *line, void *context);
 
 /**
  * @brief Process requests and parse JSON data asynchronously
+ * @param fhttp The FlipperHTTP context
  * @param http_request The function to send the request
  * @param parse_json The function to parse the JSON
  * @return true if successful, false otherwise
  */
-bool flipper_http_process_response_async(bool (*http_request)(void), bool (*parse_json)(void));
+bool flipper_http_process_response_async(FlipperHTTP *fhttp, bool (*http_request)(void), bool (*parse_json)(void));
 
 /**
  * @brief Perform a task while displaying a loading screen
+ * @param fhttp The FlipperHTTP context
  * @param http_request The function to send the request
  * @param parse_response The function to parse the response
  * @param success_view_id The view ID to switch to on success
@@ -374,10 +399,9 @@ bool flipper_http_process_response_async(bool (*http_request)(void), bool (*pars
  * @param view_dispatcher The view dispatcher to use
  * @return
  */
-void flipper_http_loading_task(bool (*http_request)(void),
+void flipper_http_loading_task(FlipperHTTP *fhttp,
+                               bool (*http_request)(void),
                                bool (*parse_response)(void),
                                uint32_t success_view_id,
                                uint32_t failure_view_id,
                                ViewDispatcher **view_dispatcher);
-
-#endif // FLIPPER_HTTP_H

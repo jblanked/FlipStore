@@ -12,13 +12,19 @@
 #include <notification/notification.h>
 #include <dialogs/dialogs.h>
 #include <jsmn/jsmn.h>
+#include <jsmn/jsmn_furi.h>
 #include <flip_store_icons.h>
 
 #define TAG "FlipStore"
-#define VERSION_TAG "FlipStore v0.7.2"
+#define VERSION_TAG "FlipStore v0.8"
 
 #define FIRMWARE_COUNT 3
 #define FIRMWARE_LINKS 3
+
+#define VGM_FIRMWARE_COUNT 1
+#define VGM_FIRMWARE_LINKS 1
+
+#define MAX_GITHUB_FILES 30
 
 // Define the submenu items for our FlipStore application
 typedef enum
@@ -29,8 +35,10 @@ typedef enum
     //
     FlipStoreSubmenuIndexOptions, // Click to view the options
     //
-    FlipStoreSubmenuIndexAppList,
-    FlipStoreSubmenuIndexFirmwares,
+    FlipStoreSubmenuIndexAppList,      // Click to view the app list
+    FlipStoreSubmenuIndexFirmwares,    // Click to view the ESP32 firmwares
+    FlipStoreSubmenuIndexVGMFirmwares, // Click to view the VGM firmwares
+    FlipStoreSubmenuIndexGitHub,       // Click to view the GitHub repository view
     //
     FlipStoreSubmenuIndexAppListBluetooth,
     FlipStoreSubmenuIndexAppListGames,
@@ -44,7 +52,8 @@ typedef enum
     FlipStoreSubmenuIndexAppListTools,
     FlipStoreSubmenuIndexAppListUSB,
     //
-    FlipStoreSubmenuIndexStartFirmwares,
+    FlipStoreSubmenuIndexStartFirmwares = 50,
+    FlipStoreSubmenuIndexStartVGMFirmwares = 60,
     //
     FlipStoreSubmenuIndexStartAppList = 100,
 } FlipStoreSubmenuIndex;
@@ -62,6 +71,9 @@ typedef enum
                                   //
     FlipStoreViewAppList,         // The app list screen
     FlipStoreViewFirmwares,       // The firmwares screen (submenu)
+    FlipStoreViewVGMFirmwares,    // The VGM firmwares screen (submenu)
+    FlipStoreViewAGithub,         // The GitHub repository screen
+                                  //
     FlipStoreViewFirmwareDialog,  // The firmware view (DialogEx) of the selected firmware
                                   //
     FlipStoreViewAppInfo,         // The app info screen (widget) of the selected app
@@ -91,6 +103,7 @@ typedef struct
     Submenu *submenu_options;             // The submenu (options)
     Submenu *submenu_app_list;            // The submenu (app list) for the selected category
     Submenu *submenu_firmwares;           // The submenu (firmwares)
+    Submenu *submenu_vgm_firmwares;       // The submenu (VGM firmwares)
     Submenu *submenu_app_list_category;   // The submenu (app list) for each category
     Widget *widget_about;                 // The widget
     VariableItemList *variable_item_list; // The variable item list (settngs)
@@ -104,8 +117,5 @@ typedef struct
 } FlipStoreApp;
 
 void flip_store_app_free(FlipStoreApp *app);
-
-void flip_store_request_error(Canvas *canvas);
-extern FlipStoreApp *app_instance;
 
 #endif // FLIP_STORE_E_H
