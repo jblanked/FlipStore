@@ -9,20 +9,13 @@ bool flip_store_download_github_file(
     const char *repo,
     const char *link)
 {
-    if (!fhttp)
+    if (!fhttp || !filename || !author || !repo || !link)
     {
-        FURI_LOG_E(TAG, "FlipperHTTP is NULL");
+        FURI_LOG_E(TAG, "Invalid arguments.");
         return false;
     }
 
-    // Create the file directory
-    char dir[256];
-    snprintf(dir, sizeof(dir), STORAGE_EXT_PATH_PREFIX "/apps_data/flip_store/%s/%s/%s", author, repo, filename);
-    snprintf(fhttp->file_path, sizeof(fhttp->file_path), "%s", dir);
-    Storage *storage = furi_record_open(RECORD_STORAGE);
-    storage_common_mkdir(storage, dir);
-    furi_record_close(RECORD_STORAGE);
-
+    snprintf(fhttp->file_path, sizeof(fhttp->file_path), STORAGE_EXT_PATH_PREFIX "/apps_data/flip_store/%s/%s/%s.txt", author, repo, filename);
     fhttp->state = IDLE;
     fhttp->save_received_data = false;
     fhttp->is_bytes_request = true;
@@ -307,20 +300,15 @@ bool flip_store_install_all_github_files(FlipperHTTP *fhttp, const char *author,
     int count = atoi(furi_string_get_cstr(file_count));
     furi_string_free(file_count);
 
-    bool parse()
-    {
-        return true;
-    }
-
     // install all files
     char file_dir[256]; // /ext/apps_data/flip_store/data/author/repo/file.json
     FURI_LOG_I(TAG, "Installing %d files.", count);
     for (int i = 0; i < count; i++)
     {
         snprintf(file_dir, sizeof(file_dir), STORAGE_EXT_PATH_PREFIX "/apps_data/flip_store/data/%s/%s/file%d.json", author, repo, i);
-        FURI_LOG_I(TAG, "Loading file %s.", file_dir);
-        FuriString *file = flipper_http_load_from_file(file_dir);
-        if (file == NULL)
+        FURI_LOG_I(TAG, "Loading file %s. Available memory: %d bytes", file_dir, memmgr_get_free_heap());
+        FuriString *file = flipper_http_load_from_file_with_limit(file_dir, 512);
+        if (!file)
         {
             FURI_LOG_E(TAG, "Failed to load file.");
             return false;
@@ -348,8 +336,31 @@ bool flip_store_install_all_github_files(FlipperHTTP *fhttp, const char *author,
             return flip_store_download_github_file(fhttp, furi_string_get_cstr(name), author, repo, furi_string_get_cstr(link));
         }
 
+        bool parse()
+        {
+            // remove .txt from the filename
+            char current_file_path[256];
+            char new_file_path[256];
+            snprintf(current_file_path, sizeof(current_file_path), STORAGE_EXT_PATH_PREFIX "/apps_data/flip_store/%s/%s/%s.txt", author, repo, furi_string_get_cstr(name));
+            snprintf(new_file_path, sizeof(new_file_path), STORAGE_EXT_PATH_PREFIX "/apps_data/flip_store/%s/%s/%s", author, repo, furi_string_get_cstr(name));
+            Storage *storage = furi_record_open(RECORD_STORAGE);
+            if (!storage_file_exists(storage, current_file_path))
+            {
+                FURI_LOG_E(TAG, "Failed to download file.");
+                furi_record_close(RECORD_STORAGE);
+                return false;
+            }
+            if (storage_common_rename(storage, current_file_path, new_file_path) != FSE_OK)
+            {
+                FURI_LOG_E(TAG, "Failed to rename file.");
+                furi_record_close(RECORD_STORAGE);
+                return false;
+            }
+            furi_record_close(RECORD_STORAGE);
+            return true;
+        }
         // download the file and wait until it is downloaded
-        FURI_LOG_I(TAG, "Downloading file %s.", furi_string_get_cstr(name));
+        FURI_LOG_I(TAG, "Downloading file %s", furi_string_get_cstr(name));
         if (!flipper_http_process_response_async(fhttp, fetch_file, parse))
         {
             FURI_LOG_E(TAG, "Failed to download file.");
@@ -357,7 +368,7 @@ bool flip_store_install_all_github_files(FlipperHTTP *fhttp, const char *author,
             furi_string_free(link);
             return false;
         }
-        FURI_LOG_I(TAG, "Downloaded file %s.", furi_string_get_cstr(name));
+        FURI_LOG_I(TAG, "Downloaded file %s", furi_string_get_cstr(name));
         furi_string_free(name);
         furi_string_free(link);
     }

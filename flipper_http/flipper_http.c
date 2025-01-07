@@ -155,6 +155,101 @@ FuriString *flipper_http_load_from_file(char *file_path)
     return str_result;
 }
 
+FuriString *flipper_http_load_from_file_with_limit(char *file_path, size_t limit)
+{
+    // Open the storage record
+    Storage *storage = furi_record_open(RECORD_STORAGE);
+    if (!storage)
+    {
+        FURI_LOG_E(HTTP_TAG, "Failed to open storage record");
+        return NULL;
+    }
+
+    // Allocate a file handle
+    File *file = storage_file_alloc(storage);
+    if (!file)
+    {
+        FURI_LOG_E(HTTP_TAG, "Failed to allocate storage file");
+        furi_record_close(RECORD_STORAGE);
+        return NULL;
+    }
+
+    // Open the file for reading
+    if (!storage_file_open(file, file_path, FSAM_READ, FSOM_OPEN_EXISTING))
+    {
+        storage_file_free(file);
+        furi_record_close(RECORD_STORAGE);
+        FURI_LOG_E(HTTP_TAG, "Failed to open file for reading: %s", file_path);
+        return NULL;
+    }
+
+    if (memmgr_get_free_heap() < limit)
+    {
+        FURI_LOG_E(HTTP_TAG, "Not enough heap to read file.");
+        storage_file_close(file);
+        storage_file_free(file);
+        furi_record_close(RECORD_STORAGE);
+        return NULL;
+    }
+
+    // Allocate a buffer to hold the read data
+    uint8_t *buffer = (uint8_t *)malloc(limit);
+    if (!buffer)
+    {
+        FURI_LOG_E(HTTP_TAG, "Failed to allocate buffer");
+        storage_file_close(file);
+        storage_file_free(file);
+        furi_record_close(RECORD_STORAGE);
+        return NULL;
+    }
+
+    // Allocate a FuriString with preallocated capacity
+    FuriString *str_result = furi_string_alloc();
+    if (!str_result)
+    {
+        FURI_LOG_E(HTTP_TAG, "Failed to allocate FuriString");
+        free(buffer);
+        storage_file_close(file);
+        storage_file_free(file);
+        furi_record_close(RECORD_STORAGE);
+        return NULL;
+    }
+    furi_string_reserve(str_result, limit);
+
+    // Read data into the buffer
+    size_t read_count = storage_file_read(file, buffer, limit);
+    if (storage_file_get_error(file) != FSE_OK)
+    {
+        FURI_LOG_E(HTTP_TAG, "Error reading from file.");
+        furi_string_free(str_result);
+        free(buffer);
+        storage_file_close(file);
+        storage_file_free(file);
+        furi_record_close(RECORD_STORAGE);
+        return NULL;
+    }
+    if (read_count == 0)
+    {
+        FURI_LOG_E(HTTP_TAG, "No data read from file.");
+        furi_string_free(str_result);
+        free(buffer);
+        storage_file_close(file);
+        storage_file_free(file);
+        furi_record_close(RECORD_STORAGE);
+        return NULL;
+    }
+
+    // Append the entire buffer to FuriString in one operation
+    furi_string_cat_str(str_result, (char *)buffer);
+
+    // Clean up
+    storage_file_close(file);
+    storage_file_free(file);
+    furi_record_close(RECORD_STORAGE);
+    free(buffer);
+    return str_result;
+}
+
 // UART worker thread
 /**
  * @brief      Worker thread to handle UART data asynchronously.

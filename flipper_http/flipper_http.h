@@ -101,6 +101,7 @@ bool flipper_http_append_to_file(
     char *file_path);
 
 FuriString *flipper_http_load_from_file(char *file_path);
+FuriString *flipper_http_load_from_file_with_limit(char *file_path, size_t limit);
 
 // UART worker thread
 /**
